@@ -1,27 +1,28 @@
-project "WalnutApp"
+project "Instance-Manager"
    kind "ConsoleApp"
    language "C++"
    cppdialect "C++17"
    targetdir "bin/%{cfg.buildcfg}"
    staticruntime "off"
 
-   files { "src/**.h", "src/**.cpp" }
+   files { "src/**.h", "src/**.cpp" , "src/**.hpp"}
 
    includedirs
    {
       "../Walnut/vendor/imgui",
       "../Walnut/vendor/glfw/include",
-      "../Walnut/vendor/glm",
 
-      "../Walnut/Walnut/src",
+      "../Walnut/Walnut/Source",
+      "../Walnut/Walnut/Platform/GUI",
 
       "%{IncludeDir.VulkanSDK}",
+      "%{IncludeDir.glm}",
    }
 
-   links
-   {
-       "Walnut"
-   }
+    links
+    {
+        "Walnut"
+    }
 
    targetdir ("../bin/" .. outputdir .. "/%{prj.name}")
    objdir ("../bin-int/" .. outputdir .. "/%{prj.name}")
