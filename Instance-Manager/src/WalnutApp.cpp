@@ -37,11 +37,11 @@ public:
 
 					if (ImGui::Button("Update Instance"))
 					{
-						Request req("https://raw.githubusercontent.com/Sightem/UWP-Instance-Manager/dev/WalnutApp/exes.zip");
-						req.initalize();
+						Request uni10req("https://raw.githubusercontent.com/Sightem/UWP-Instance-Manager/dev/WalnutApp/exes.zip");
+						uni10req.initalize();
 
 
-						req.download_file("exes.zip");
+						uni10req.download_file("exes.zip");
 
 						FS::decompress_zip("exes.zip", std::filesystem::current_path().string());
 
