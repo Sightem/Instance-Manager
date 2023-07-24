@@ -2,7 +2,7 @@
 .vs/
 bin/
 bin-int/
-Template/
+Instance-Manager/Template/
 
 # Files
 *.vcxproj
