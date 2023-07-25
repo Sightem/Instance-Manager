@@ -58,7 +58,6 @@ public:
 
 							auto completionCallback = [&]() {
 								log.add_log("Update Done");
-								thread_manager.clear_task_data("updateInstance");
 							};
 
 							thread_manager.submit_task("updateInstance", [&]() {
@@ -66,7 +65,6 @@ public:
 								win10req.initalize();
 								win10req.download_file("Windows10Universal.zip");
 
-								FS:: decompress_zip("Windows10Universal.zip", std::get<2>(paths_and_names[item_current_idx]));
 
 								std::string pathTow10uni = std::get<2>(paths_and_names[item_current_idx]) + "\\Windows10Universal.exe";
 
@@ -74,7 +72,7 @@ public:
 									std::filesystem::remove(pathTow10uni);
 								}
 
-								std::filesystem::copy_file("Windows10Universal.exe", pathTow10uni);
+								FS::decompress_zip("Windows10Universal.zip", std::get<2>(paths_and_names[item_current_idx]));
 								}, completionCallback);
 
 							thread_manager.submit_task("updateInstance", [&]() {
@@ -90,7 +88,6 @@ public:
 
 								std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
 							}, completionCallback);
-
 
 							//close the popup
 							ImGui::CloseCurrentPopup();

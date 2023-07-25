@@ -49,12 +49,6 @@ public:
         return 0;
     }
 
-    void clear_task_data(const std::string& id) {
-        std::unique_lock lock(smtx);
-        tasks_map.erase(id);
-        callbacks_map.erase(id);
-    }
-
 private:
     // Structure to represent task info
     struct TaskInfo {
