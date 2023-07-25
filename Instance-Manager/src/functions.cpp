@@ -323,7 +323,6 @@ namespace Native
         ZeroMemory(&process_info, sizeof(process_info));
 
         std::string cmd_line = "powershell.exe -Command \"" + command + "\"";
-
         if (!CreateProcess(NULL, &cmd_line[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &startup_info, &process_info)) {
             std::cerr << "Failed to create process" << std::endl;
             return "";
