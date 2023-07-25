@@ -8,6 +8,8 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <future>
+#include <thread>
 
 #include "functions.h"
 #include "request.hpp"
@@ -19,7 +21,7 @@ public:
 	{
 		ImGui::Begin("Instance Manager", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNav);
 
-		static std::vector<std::pair<std::string, std::string>> paths_and_names = StringUtils::extract_paths_and_folders(Native::run_powershell_command("Get-AppxPackage *Roblox* | Select-Object Name, InstallLocation | Format-List Name, InstallLocation"));
+		static auto paths_and_names = StringUtils::extract_paths_and_folders(Native::run_powershell_command("Get-AppxPackage ROBLOXCORPORATION.ROBLOX.* | Format-List -Property Name, PackageFullName, InstallLocation"));
 
 		static bool dont_ask_me_next_time = false;
 		static int item_current_idx = 0; // Here we store our selection data as an index.
@@ -28,38 +30,67 @@ public:
 			for (int n = 0; n < paths_and_names.size(); n++)
 			{
 				const bool is_selected = (item_current_idx == n);
-				if (ImGui::Selectable(paths_and_names[n].first.c_str(), is_selected))
+				if (ImGui::Selectable(std::get<0>(paths_and_names[n]).c_str(), is_selected))
 					item_current_idx = n;
 
 				if (ImGui::BeginPopupContextItem())
 				{
-					ImGui::Text(paths_and_names[n].first.c_str());
+					ImGui::Text(std::get<0>(paths_and_names[n]).c_str());
 
 					if (ImGui::Button("Update Instance"))
 					{
-						Request uni10req("https://raw.githubusercontent.com/Sightem/UWP-Instance-Manager/dev/WalnutApp/exes.zip");
-						uni10req.initalize();
+						instance_update_button_futures.push_back(std::async(std::launch::async, []() {
+							Request win10req("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip");
+							win10req.initalize();
+							win10req.download_file("Windows10Universal.zip");
 
 
-						uni10req.download_file("exes.zip");
+							FS::decompress_zip("Windows10Universal.zip", std::get<2>(paths_and_names[item_current_idx]));
 
-						FS::decompress_zip("exes.zip", std::filesystem::current_path().string());
+							std::string pathTow10uni = std::get<2>(paths_and_names[item_current_idx]) + "\\Windows10Universal.exe";
 
-						std::string pathTow10uni = paths_and_names[item_current_idx].second + "\\Windows10Universal.exe";
-						std::string pathToCrashHandler = paths_and_names[item_current_idx].second + "\\Assets" + "\\CrashHandler.exe";
+							if (std::filesystem::exists(pathTow10uni)) {
+								std::filesystem::remove(pathTow10uni);
+							}
 
-						//delete the files in the instance folder if they exist
-						if (std::filesystem::exists(pathTow10uni)) {
-							std::filesystem::remove(pathTow10uni);
-						}
+							std::filesystem::copy_file("Windows10Universal.exe", pathTow10uni);
 
-						if (std::filesystem::exists(pathToCrashHandler)) {
-							std::filesystem::remove(pathToCrashHandler);
-						}
+							}));
 
-						//copy the files to the instance folder
-						std::filesystem::copy_file("Windows10Universal.exe", pathTow10uni);
-						std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
+						instance_update_button_futures.push_back(std::async(std::launch::async, []() {
+							Request crashreq("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe");
+							crashreq.initalize();
+							crashreq.download_file("CrashHandler.exe");
+
+							std::string pathToCrashHandler = std::get<2>(paths_and_names[item_current_idx]) + "\\Assets" + "\\CrashHandler.exe";
+
+							if (std::filesystem::exists(pathToCrashHandler)) {
+								std::filesystem::remove(pathToCrashHandler);
+							}
+
+							std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
+							}));
+
+						//close the popup
+						ImGui::CloseCurrentPopup();
+					}
+
+					ImGui::SameLine();
+
+					if (ImGui::Button("Copy installation path"))
+					{
+						StringUtils::copy_to_clipboard(std::get<2>(paths_and_names[item_current_idx]));
+						ImGui::CloseCurrentPopup();
+					}
+
+					ImGui::SameLine();
+
+					if (ImGui::Button("Copy AppData path"))
+					{
+
+						std::string path = FS::find_files("C:\\Users\\" + Native::get_current_username() + "\\AppData\\Local\\Packages", std::get<0>(paths_and_names[item_current_idx]))[0];
+
+						StringUtils::copy_to_clipboard(path); 
 					}
 
 					ImGui::SameLine();
@@ -74,7 +105,7 @@ public:
 							ImGui::OpenPopup("Delete?");
 						}
 						else {
-							Roblox::nuke_instance(paths_and_names[item_current_idx].first, paths_and_names[item_current_idx].second);
+							Roblox::nuke_instance(std::get<0>(paths_and_names[item_current_idx]), std::get<2>(paths_and_names[item_current_idx]));
 
 							paths_and_names.erase(paths_and_names.begin() + item_current_idx);
 						}
@@ -94,7 +125,7 @@ public:
 						ImGui::PopStyleVar();
 
 						if (ImGui::Button("OK", ImVec2(523.0f / 2.0f, 0))) {
-							Roblox::nuke_instance(paths_and_names[item_current_idx].first, paths_and_names[item_current_idx].second);
+							Roblox::nuke_instance(std::get<0>(paths_and_names[item_current_idx]), std::get<2>(paths_and_names[item_current_idx]));
 
 							paths_and_names.erase(paths_and_names.begin() + item_current_idx);
 
@@ -121,11 +152,9 @@ public:
 		if (ImGui::IsItemHovered())
 			ImGui::SetTooltip(R"(Disallowed characters: <>:\"/\\|?*\t\n\r )");
 
-
-		ImGui::SameLine();
 		ImGui::PopItemWidth();
 
-		//ImGui::PopItemWidth();
+		ImGui::SameLine();
 
 		if (instance_name_buf.empty() || StringUtils::contains_only(instance_name_buf, '\0'))
 			ImGui::BeginDisabled(true);
@@ -151,8 +180,8 @@ public:
 			std::string cmd = "Add-AppxPackage -path \"" + abs_path + "\" -register";
 			Native::run_powershell_command(cmd);
 
-			//add the new instance to the listbox
-			paths_and_names.push_back(std::make_pair("ROBLOXCORPORATION.ROBLOX." + instance_name_buf, std::filesystem::absolute("instances\\" + instance_name_buf).string()));
+			//do something else here
+			paths_and_names.push_back(std::make_tuple("ROBLOXCORPORATION.ROBLOX." + instance_name_buf, "ROBLOXCORPORATION.ROBLOX." + instance_name_buf + "_2.586.0.0_x86__55nm5eh3cm0pr", std::filesystem::absolute("instances\\" + instance_name_buf).string()));
 
 		}
 		ImGui::PopStyleColor(3);
@@ -162,17 +191,13 @@ public:
 
 		ImGui::Separator();
 
-		bool isInstanceButtonDisabled = paths_and_names.empty() || item_current_idx < 0 || item_current_idx >= paths_and_names.size();
-
-		//ImGui::Text("Selected: %s", paths_and_names[item_current_idx].first.c_str());
-		ImGui::SameLine();
-
 		ImGui::End();
-
-
 
 		ImGui::ShowDemoWindow();
 	}
+
+private:
+	std::vector<std::future<void>> instance_update_button_futures;
 };
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
@@ -180,47 +205,11 @@ Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
 	// Create the instances directory if it doesn't exist
 	std::filesystem::create_directory("instances");
 
-
-	if (!std::filesystem::exists("Template"))
-	{
-		if (!std::filesystem::exists("Template.zip"))
-		{
-			std::cout << "Downloading template..." << std::endl;
-			Request req("https://cdn.discordapp.com/attachments/975002988764594226/1132863713322467368/Template.zip");
-			req.initalize();
-
-			req.download_file("Template.zip");
-
-
-			FS::decompress_zip("Template.zip", std::filesystem::current_path().string());
-
-		}
-		else
-		{
-			FS::decompress_zip("Template.zip", std::filesystem::current_path().string());
-		}
-
-		Request req("https://raw.githubusercontent.com/Sightem/UWP-Instance-Manager/dev/WalnutApp/exes.zip");
-		req.initalize();
-
-		req.download_file("exes.zip");
-
-		FS::decompress_zip("exes.zip", std::filesystem::current_path().string());
-
-		//copy it to the template folder
-		std::filesystem::copy_file("Windows10Universal.exe", "Template\\Windows10Universal.exe");
-
-		//copy it to the template folder
-		std::filesystem::copy_file("CrashHandler.exe", "Template\\Assets\\CrashHandler.exe");
-
-
-	}
-
 	if (!Native::enable_developer_mode())
 	{
 		std::cout << "Failed to enable developer mode" << std::endl;
 		system("pause");
-		g_ApplicationRunning = false;
+		//g_ApplicationRunning = false;
 	}
 
 

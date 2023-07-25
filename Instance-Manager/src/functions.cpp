@@ -206,6 +206,22 @@ namespace FS
         return true;
     }
 
+    std::vector<std::string> find_files(const std::string& path, const std::string& substring) {
+        std::vector<std::string> result;
+        try {
+            for (const auto& entry : std::filesystem::directory_iterator(path)) {
+                if ((entry.is_regular_file() || entry.is_directory()) && entry.path().string().find(substring) != std::string::npos) {
+                    result.push_back(entry.path().string());
+                }
+            }
+        }
+        catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
+
+        return result;
+    }
+
 }
 
 static const char* DISALLOWED_CHARS = "<>:\"/\\|?*\t\n\r ";
@@ -244,6 +260,9 @@ namespace ui
             return 0;
         };
 
+        if (my_str->empty()) {
+            my_str->resize(1);
+        }
         return ImGui::InputTextWithHint(label, hint, &my_str->front(), my_str->size() + 1, flags | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCharFilter, combinedCallback, (void*)my_str);
     }
 
@@ -326,6 +345,15 @@ namespace Native
 
         return output;
     }
+
+    std::string get_current_username() {
+        char username[UNLEN + 1];
+        DWORD username_len = UNLEN + 1;
+
+        if (GetUserName(username, &username_len)) {
+            return std::string(username);
+        }
+    }
 }
 
 namespace StringUtils
@@ -334,19 +362,20 @@ namespace StringUtils
         return s.find_first_not_of(c) == std::string::npos;
     }
 
-    std::vector<std::pair<std::string, std::string>> extract_paths_and_folders(const std::string& input) noexcept {
-        std::vector<std::pair<std::string, std::string>> namesAndPaths;
+    std::vector<std::tuple<std::string, std::string, std::string>> extract_paths_and_folders(const std::string& input) noexcept {
+        std::vector<std::tuple<std::string, std::string, std::string>> namesAndPaths;
 
-        std::regex pattern(R"(Name\s*:\s*(.+)\s*InstallLocation\s*:\s*(.+))");
+        std::regex pattern(R"(Name\s*:\s*(.+)\s*PackageFullName\s*:\s*(.+)\s*InstallLocation\s*:\s*(.+))");
         std::smatch match;
 
         std::string::const_iterator searchStart(input.cbegin());
 
         while (std::regex_search(searchStart, input.cend(), match, pattern)) {
             std::string name = match[1].str();
-            std::string path = match[2].str();
+            std::string packageFullName = match[2].str();
+            std::string path = match[3].str();
 
-            namesAndPaths.push_back(std::make_pair(name, path));
+            namesAndPaths.push_back(std::make_tuple(name, packageFullName, path));
 
             searchStart = match.suffix().first;
         }
@@ -401,6 +430,14 @@ namespace StringUtils
 
         // Do not free the hMem after SetClipboardData, as the system will take ownership of it.
         return true;
+    }
+
+    std::string get_after_last_occurrence(const std::string& source, char ch) {
+        size_t pos = source.rfind(ch);
+        if (pos != std::string::npos) {
+            return source.substr(pos + 1);
+        }
+        return "";
     }
 
 }

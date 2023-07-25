@@ -8,6 +8,7 @@
 #include <regex>
 #include <sstream>
 #include <imgui.h>
+#include <Lmcons.h>
 #include <Windows.h>
 #include <libzippp/libzippp.h>
 
@@ -27,6 +28,7 @@ namespace FS
 
     bool decompress_zip_to_file(const std::string& zipPath, const std::string& destination);
 
+    std::vector<std::string> find_files(const std::string& path, const std::string& substring);
 }
 
 namespace ui
@@ -38,20 +40,22 @@ namespace Native
 {
     bool enable_developer_mode();
 
-
     std::string run_powershell_command(const std::string& command);
+
+    std::string get_current_username();
 }
 
 namespace StringUtils
 {
     bool contains_only(const std::string& s, char c);
 
-    std::vector<std::pair<std::string, std::string>> extract_paths_and_folders(const std::string& input) noexcept;
+    std::vector<std::tuple<std::string, std::string, std::string>> extract_paths_and_folders(const std::string& input) noexcept;
 
     std::string replace_all(std::string str, const std::string& from, const std::string& to);
 
     bool copy_to_clipboard(const std::string& data);
 
+    std::string get_after_last_occurrence(const std::string& source, char ch);
 }
 
 namespace Roblox

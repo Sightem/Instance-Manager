@@ -3,6 +3,7 @@
 bin/
 bin-int/
 Instance-Manager/Template/
+instances/
 
 # Files
 *.vcxproj
