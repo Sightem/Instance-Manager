@@ -1,4 +1,8 @@
 #include "functions.h"
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include "md5.h"
+#include <map>
 
 namespace FS
 {
@@ -441,6 +445,27 @@ namespace StringUtils
         return "";
     }
 
+    std::string base64_encode(const unsigned char* buffer, size_t length)
+    {
+        BIO* bio, * b64;
+        long len;
+
+        b64 = BIO_new(BIO_f_base64());
+        bio = BIO_new(BIO_s_mem());
+        bio = BIO_push(b64, bio);
+
+        BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+        BIO_write(bio, buffer, length);
+        BIO_flush(bio);
+
+        len = BIO_get_mem_data(bio, &buffer);
+
+        std::string result(reinterpret_cast<const char*>(buffer), len);
+
+        BIO_free_all(bio);
+        return result;
+    }
+
 }
 
 namespace Roblox
@@ -451,5 +476,187 @@ namespace Roblox
         Native::run_powershell_command(cmd);
 
         FS::remove_path(path);
+    }
+}
+
+namespace Utils
+{
+    long get_shift_right(long value, int count)
+    {
+        if ((value & 0x80000000) == 0)
+        {
+            return (value >> count);
+        }
+        else // Negative number
+        {
+            return (value >> count) ^ 0xFFFF0000;
+        }
+    }
+
+    int to_int32(const unsigned char* bytes, int offset)
+    {
+        return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24));
+    }
+
+    const unsigned char* to_bytes(long value)
+    {
+        static unsigned char bytes[8];
+        bytes[0] = value & 0xFF;
+        bytes[1] = (value >> 8) & 0xFF;
+        bytes[2] = (value >> 16) & 0xFF;
+        bytes[3] = (value >> 24) & 0xFF;
+        bytes[4] = (value >> 32) & 0xFF;
+        bytes[5] = (value >> 40) & 0xFF;
+        bytes[6] = (value >> 48) & 0xFF;
+        bytes[7] = (value >> 56) & 0xFF;
+        return bytes;
+    }
+
+    const unsigned char* take_bytes(const unsigned char* input, int count)
+    {
+        static unsigned char result[8];
+        for (int i = 0; i < count && i < 8; ++i) {
+            result[i] = input[i];
+        }
+        return result;
+    }
+
+    class HashMap {
+    public:
+        long PDATA = 0, CACHE = 0, COUNTER = 0, INDEX = 0,
+            MD51 = 0, MD52 = 0, OUTHASH1 = 0, OUTHASH2 = 0,
+            R0 = 0, R3 = 0;
+        std::map<int, long> R1 = { {0, 0}, {1, 0} },
+            R2 = { {0, 0}, {1, 0} },
+            R4 = { {0, 0}, {1, 0} },
+            R5 = { {0, 0}, {1, 0} },
+            R6 = { {0, 0}, {1, 0} };
+
+        void reset() {
+            PDATA = 0;
+            CACHE = 0;
+            COUNTER = 0;
+            INDEX = 0;
+            MD51 = 0;
+            MD52 = 0;
+            OUTHASH1 = 0;
+            OUTHASH2 = 0;
+            R0 = 0;
+            R3 = 0;
+
+            R1 = { {0, 0}, {1, 0} };
+            R2 = { {0, 0}, {1, 0} };
+            R4 = { {0, 0}, {1, 0} };
+            R5 = { {0, 0}, {1, 0} };
+            R6 = { {0, 0}, {1, 0} };
+        }
+    };
+
+    std::string get_hash(const std::string& baseInfo)
+    {
+        std::vector<unsigned char> bytes(baseInfo.begin(), baseInfo.end());
+
+        for (int i = 0; i < bytes.size(); i += 2) {
+            bytes.insert(bytes.begin() + i + 1, 0x00);
+        }
+
+        bytes.push_back(0x00);
+        bytes.push_back(0x00);
+
+        Chocobo1::MD5 md5;
+        md5.addData(reinterpret_cast<char*>(&bytes[0]), bytes.size());
+        md5.finalize();
+        std::array<unsigned char, 16> bytesn = md5.toArray();
+        unsigned char md5Result[16];
+        std::copy(bytesn.begin(), bytesn.end(), md5Result);
+
+
+        int lengthBase = baseInfo.length() * 2 + 2;
+        int length = (((lengthBase & 4) <= 1) ? 1 : 0) + Utils::get_shift_right(lengthBase, 2) - 1;
+        std::string base64Hash;
+
+        if (length > 1) {
+            HashMap map;
+            map.CACHE = 0;
+            map.OUTHASH1 = 0;
+            map.PDATA = 0;
+            map.MD51 = (to_int32(md5Result, 0) | 1) + static_cast<int>(0x69FB0000L);
+            map.MD52 = (to_int32(md5Result, 4) | 1) + static_cast<int>(0x13DB0000L);
+            map.INDEX = static_cast<int>(get_shift_right(length - 2, 1));
+            map.COUNTER = map.INDEX + 1;
+
+            while (map.COUNTER > 0) {
+                map.R0 = to_int32(to_bytes(to_int32(bytes.data(), static_cast<int>(map.PDATA)) + map.OUTHASH1), 0);
+                map.R1[0] = to_int32(to_bytes(to_int32(bytes.data(), static_cast<int>(map.PDATA) + 4)), 0);
+                map.PDATA = map.PDATA + 8;
+                map.R2[0] = to_int32(to_bytes((map.R0 * map.MD51) - (0x10FA9605L * get_shift_right(map.R0, 16))), 0);
+                map.R2[1] = to_int32(to_bytes((0x79F8A395L * map.R2[0]) + (0x689B6B9FL * get_shift_right(map.R2[0], 16))), 0);
+                map.R3 = to_int32(to_bytes((0xEA970001L * map.R2[1]) - (0x3C101569L * get_shift_right(map.R2[1], 16))), 0);
+                map.R4[0] = to_int32(to_bytes(map.R3 + map.R1[0]), 0);
+                map.R5[0] = to_int32(to_bytes(map.CACHE + map.R3), 0);
+                map.R6[0] = to_int32(to_bytes((map.R4[0] * map.MD52) - (0x3CE8EC25L * get_shift_right(map.R4[0], 16))), 0);
+                map.R6[1] = to_int32(to_bytes((0x59C3AF2DL * map.R6[0]) - (0x2232E0F1L * get_shift_right(map.R6[0], 16))), 0);
+                map.OUTHASH1 = to_int32(to_bytes((0x1EC90001L * map.R6[1]) + (0x35BD1EC9L * get_shift_right(map.R6[1], 16))), 0);
+                map.OUTHASH2 = to_int32(to_bytes(map.R5[0] + map.OUTHASH1), 0);
+                map.CACHE = map.OUTHASH2;
+                map.COUNTER = map.COUNTER - 1;
+            }
+
+            std::vector<unsigned char> outHash(16, 0x00);
+            auto fullbuffer = to_bytes(map.OUTHASH1);
+            auto buffer = take_bytes(fullbuffer, 4);
+            std::copy(buffer, buffer + 4, outHash.begin());
+            fullbuffer = to_bytes(map.OUTHASH2);
+            buffer = take_bytes(fullbuffer, 4);
+            std::copy(buffer, buffer + 4, outHash.begin() + 4);
+
+            map.reset();
+
+            map.CACHE = 0;
+            map.OUTHASH1 = 0;
+            map.PDATA = 0;
+            map.MD51 = to_int32(md5Result, 0) | 1;
+            map.MD52 = to_int32(md5Result, 4) | 1;
+            map.INDEX = static_cast<int>(get_shift_right(length - 2, 1));
+            map.COUNTER = map.INDEX + 1;
+            while (map.COUNTER > 0)
+            {
+                map.R0 = to_int32(bytes.data(), map.PDATA) + map.OUTHASH1;
+                map.PDATA = map.PDATA + 8;
+                map.R1[0] = to_int32(to_bytes(map.R0 * map.MD51), 0);
+                map.R1[1] = to_int32(to_bytes((0xB1110000L * map.R1[0]) - (0x30674EEFL * get_shift_right(map.R1[0], 16))), 0);
+                map.R2[0] = to_int32(to_bytes((0x5B9F0000L * map.R1[1]) - (0x78F7A461L * get_shift_right(map.R1[1], 16))), 0);
+                map.R2[1] = to_int32(to_bytes((0x12CEB96DL * get_shift_right(map.R2[0], 16)) - (0x46930000L * map.R2[0])), 0);
+                map.R3 = to_int32(to_bytes((0x1D830000L * map.R2[1]) + (0x257E1D83L * get_shift_right(map.R2[1], 16))), 0);
+                map.R4[0] = to_int32(to_bytes(map.MD52 * (map.R3 + to_int32(bytes.data(), map.PDATA - 4))), 0);
+                map.R4[1] = to_int32(to_bytes((0x16F50000L * map.R4[0]) - (0x5D8BE90BL * get_shift_right(map.R4[0], 16))), 0);
+                map.R5[0] = to_int32(to_bytes((0x96FF0000L * map.R4[1]) - (0x2C7C6901L * get_shift_right(map.R4[1], 16))), 0);
+                map.R5[1] = to_int32(to_bytes((0x2B890000L * map.R5[0]) + (0x7C932B89L * get_shift_right(map.R5[0], 16))), 0);
+                map.OUTHASH1 = to_int32(to_bytes((0x9F690000L * map.R5[1]) - (0x405B6097L * get_shift_right(map.R5[1], 16))), 0);
+                map.OUTHASH2 = to_int32(to_bytes(map.OUTHASH1 + map.CACHE + map.R3), 0);
+                map.CACHE = map.OUTHASH2;
+                map.COUNTER = map.COUNTER - 1;
+            }
+
+            buffer = to_bytes(map.OUTHASH1);
+            std::copy(buffer, buffer + 4, outHash.begin() + 8);
+            buffer = to_bytes(map.OUTHASH2);
+            std::copy(buffer, buffer + 4, outHash.begin() + 12);
+
+            std::vector<unsigned char> outHashBase(8, 0x00);
+            int hashValue1 = to_int32(outHash.data(), 8) ^ to_int32(outHash.data(), 0);
+            int hashValue2 = to_int32(outHash.data(), 12) ^ to_int32(outHash.data(), 4);
+
+            buffer = to_bytes(hashValue1);
+            std::copy(buffer, buffer + 4, outHashBase.begin());
+            buffer = to_bytes(hashValue2);
+            std::copy(buffer, buffer + 4, outHashBase.begin() + 4);
+            base64Hash = StringUtils::base64_encode(outHashBase.data(), outHashBase.size());
+
+            return base64Hash;
+        }
+        else {
+            throw std::runtime_error("Missing base info");
+        }
     }
 }

@@ -56,9 +56,22 @@ namespace StringUtils
     bool copy_to_clipboard(const std::string& data);
 
     std::string get_after_last_occurrence(const std::string& source, char ch);
+
+    std::string base64_encode(const unsigned char* buffer, size_t length);
 }
 
 namespace Roblox
 {
     void nuke_instance(const std::string& name, const std::string& path);
+}
+
+namespace Utils
+{
+    long get_shift_right(long value, int count);
+    int to_int32(const unsigned char* bytes, int offset);
+
+    const unsigned char* to_bytes(long value);
+    const unsigned char* take_bytes(const unsigned char* input, int count);
+    std::string get_hash(const std::string& baseInfo);
+
 }
