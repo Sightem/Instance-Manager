@@ -184,23 +184,29 @@ public:
 		ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(33, 123, 33, 255));
 		if (ImGui::Button("Create Instance"))
 		{
-			std::string buf = FS::replace_pattern_in_file("Template\\AppxManifest.xml", "{INSTANCENAME}", instance_name_buf);
+			log.add_log("Creating instance...");
 
-			std::filesystem::create_directory("instances\\" + instance_name_buf);
+			auto completionCallback = [&]() {
+				log.add_log("Instance created");
+				paths_and_names.push_back(std::make_tuple("ROBLOXCORPORATION.ROBLOX." + instance_name_buf, "ROBLOXCORPORATION.ROBLOX." + instance_name_buf + "_2.586.0.0_x86__55nm5eh3cm0pr", std::filesystem::absolute("instances\\" + instance_name_buf).string()));
+			};
 
-			FS::copy_directory("Template", "instances\\" + instance_name_buf);
+			thread_manager.submit_task("createInstance", [&]() {
+				//create the instance
+				std::string buf = FS::replace_pattern_in_file("Template\\AppxManifest.xml", "{INSTANCENAME}", instance_name_buf);
 
-			std::ofstream ofs("instances\\" + instance_name_buf + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
-			ofs << buf;
-			ofs.close();
+				std::filesystem::create_directory("instances\\" + instance_name_buf);
 
-			std::string abs_path = std::filesystem::absolute("instances\\" + instance_name_buf + "\\AppxManifest.xml").string();
-			std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
-			Native::run_powershell_command(cmd);
+				FS::copy_directory("Template", "instances\\" + instance_name_buf);
 
-			//do something else here
-			paths_and_names.push_back(std::make_tuple("ROBLOXCORPORATION.ROBLOX." + instance_name_buf, "ROBLOXCORPORATION.ROBLOX." + instance_name_buf + "_2.586.0.0_x86__55nm5eh3cm0pr", std::filesystem::absolute("instances\\" + instance_name_buf).string()));
+				std::ofstream ofs("instances\\" + instance_name_buf + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
+				ofs << buf;
+				ofs.close();
 
+				std::string abs_path = std::filesystem::absolute("instances\\" + instance_name_buf + "\\AppxManifest.xml").string();
+				std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
+				Native::run_powershell_command(cmd);
+			}, completionCallback);
 		}
 		ImGui::PopStyleColor(3);
 
@@ -213,7 +219,7 @@ public:
 
 		ImGui::End();
 
-		ImGui::ShowDemoWindow();
+//		ImGui::ShowDemoWindow();
 	}
 
 private:
