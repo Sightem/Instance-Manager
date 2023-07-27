@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "functions.h"
 #include <openssl/bio.h>
 #include <openssl/evp.h>
@@ -359,6 +360,123 @@ namespace Native
             return std::string(username);
         }
     }
+
+    std::string get_user_sid() {
+        HANDLE hToken = NULL;
+        DWORD dwSize = 0;
+        TOKEN_USER* pTokenUser = NULL;
+        LPTSTR StringSid = NULL;
+        std::string sSid;
+
+        auto Cleanup = [&]() {
+            if (StringSid) {
+                LocalFree(StringSid);
+            }
+            if (pTokenUser) {
+                free(pTokenUser);
+            }
+            if (hToken) {
+                CloseHandle(hToken);
+            }
+        };
+
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+            Cleanup();
+            return sSid; // Return empty 
+        }
+
+        GetTokenInformation(hToken, TokenUser, NULL, dwSize, &dwSize);
+        pTokenUser = (TOKEN_USER*)malloc(dwSize);
+
+        if (pTokenUser == NULL) {
+            Cleanup();
+            return sSid; // Return empty
+        }
+
+        if (!GetTokenInformation(hToken, TokenUser, pTokenUser, dwSize, &dwSize)) {
+            Cleanup();
+            return sSid; // Return empty
+        }
+
+        if (!ConvertSidToStringSid(pTokenUser->User.Sid, &StringSid)) {
+            Cleanup();
+            return sSid; // Return empty
+        }
+
+        sSid = StringSid;
+
+        std::transform(sSid.begin(), sSid.end(), sSid.begin(), ::tolower);
+
+        Cleanup();
+
+        return sSid;
+    }
+
+    std::string get_user_experience()
+    {
+        const std::wstring userExperience = L"User Choice set via Windows User Experience {D18B6DD5-6124-4341-9318-804003BAFA0B}";
+        const std::wstring str1 = L"User Choice set via Windows User Experience";
+
+        wchar_t systemPath[MAX_PATH];
+        SHGetFolderPathW(NULL, CSIDL_SYSTEMX86, NULL, 0, systemPath);
+        std::wstring fullPath = std::wstring(systemPath) + L"\\Shell32.dll";
+
+        std::ifstream file(fullPath, std::ios::binary);
+        if (!file)
+        {
+            std::cerr << "Failed to open file." << std::endl;
+            return StringUtils::wstr_to_str(userExperience);
+        }
+
+        file.seekg(0, std::ios::end);
+        size_t fileSize = file.tellg();
+        file.seekg(0, std::ios::beg);
+        std::vector<char> bytes(fileSize);
+        file.read(bytes.data(), fileSize);
+        file.close();
+
+        std::wstring str2(reinterpret_cast<wchar_t*>(bytes.data()), fileSize / sizeof(wchar_t));
+
+        size_t startIndex = str2.find(str1);
+        if (startIndex != std::wstring::npos)
+        {
+            size_t endIndex = str2.find(L"}", startIndex);
+            if (endIndex != std::wstring::npos)
+            {
+                return StringUtils::wstr_to_str(str2.substr(startIndex, endIndex - startIndex + 1));
+            }
+        }
+
+        return StringUtils::wstr_to_str(userExperience);
+    }
+
+    std::string get_hex_datetime()
+    {
+        using namespace std::chrono;
+        system_clock::time_point now = system_clock::now();
+        time_t tt = system_clock::to_time_t(now);
+        tm local_tm;
+        localtime_s(&local_tm, &tt);
+
+        local_tm.tm_sec = 0;
+
+        tt = mktime(&local_tm);
+
+        LONGLONG ll = Int32x32To64(tt, 10000000) + 116444736000000000;
+        FILETIME ft;
+        ft.dwLowDateTime = (DWORD)ll;
+        ft.dwHighDateTime = ll >> 32;
+
+        unsigned long long fileTime = ((unsigned long long)ft.dwHighDateTime << 32) + ft.dwLowDateTime;
+        unsigned long num1 = fileTime >> 32;
+        unsigned long num2 = fileTime & 0xFFFFFFFF;
+
+        std::stringstream ss;
+        ss << std::hex << std::setw(8) << std::setfill('0') << num1
+            << std::setw(8) << std::setfill('0') << num2;
+
+        return ss.str();
+    }
 }
 
 namespace StringUtils
@@ -466,6 +584,14 @@ namespace StringUtils
         return result;
     }
 
+    std::string wstr_to_str(const std::wstring& wstr)
+    {
+        int numBytes = WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
+        std::vector<char> buffer(numBytes);
+        WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), -1, buffer.data(), numBytes, NULL, NULL);
+        return std::string(buffer.data());
+    }
+
 }
 
 namespace Roblox
@@ -498,7 +624,7 @@ namespace Utils
         return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24));
     }
 
-    const unsigned char* to_bytes(long value)
+    const unsigned char* to_bytes(int64_t value)
     {
         static unsigned char bytes[8];
         bytes[0] = value & 0xFF;

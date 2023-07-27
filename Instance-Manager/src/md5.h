@@ -12,6 +12,7 @@
 #ifndef CHOCOBO1_MD5_H
 #define CHOCOBO1_MD5_H
 
+#define NOMINMAX
 #include <array>
 #include <cassert>
 #include <climits>

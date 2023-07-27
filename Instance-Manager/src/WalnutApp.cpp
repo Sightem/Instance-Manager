@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "Walnut/Application.h"
 #include "Walnut/EntryPoint.h"
 
@@ -19,7 +20,7 @@
 #include "AppLog.hpp"
 #include "ThreadManager.hpp"
 
-
+#define NOMINMAX
 class InstanceManager : public Walnut::Layer
 {
 public:

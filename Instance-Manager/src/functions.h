@@ -1,4 +1,5 @@
 #pragma once
+#define NOMINMAX
 #include <iostream>
 #include <vector>
 #include <string>
@@ -10,6 +11,9 @@
 #include <imgui.h>
 #include <Lmcons.h>
 #include <Windows.h>
+#include <Shlobj.h>
+#include <Shlobj_core.h>
+#include <sddl.h>
 #include <libzippp/libzippp.h>
 
 
@@ -43,6 +47,12 @@ namespace Native
     std::string run_powershell_command(const std::string& command);
 
     std::string get_current_username();
+
+    std::string get_user_experience();
+
+    std::string get_user_sid();
+
+    std::string get_hex_datetime();
 }
 
 namespace StringUtils
@@ -58,6 +68,8 @@ namespace StringUtils
     std::string get_after_last_occurrence(const std::string& source, char ch);
 
     std::string base64_encode(const unsigned char* buffer, size_t length);
+
+    std::string wstr_to_str(const std::wstring& wstr);
 }
 
 namespace Roblox
@@ -70,7 +82,7 @@ namespace Utils
     long get_shift_right(long value, int count);
     int to_int32(const unsigned char* bytes, int offset);
 
-    const unsigned char* to_bytes(long value);
+    const unsigned char* to_bytes(int64_t value);
     const unsigned char* take_bytes(const unsigned char* input, int count);
     std::string get_hash(const std::string& baseInfo);
 
