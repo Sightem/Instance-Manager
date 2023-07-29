@@ -2,6 +2,7 @@
 #include "functions.h"
 #include <openssl/bio.h>
 #include <openssl/evp.h>
+#include <fmt/format.h>
 #include "md5.h"
 #include <map>
 
@@ -70,29 +71,32 @@ namespace FS
         return true;
     }
 
-    std::string replace_pattern_in_file(const std::filesystem::path& filePath, const std::string& pattern, const std::string& replacement)
+    std::string replace_pattern_in_file(const std::filesystem::path& filePath,
+        const std::string& pattern,
+        const std::string& replacement)
     {
-        std::ifstream fileStream(filePath);
-
-        if (!fileStream) {
-            std::cerr << "Failed to open the file: " << filePath << std::endl;
-            return "";
-        }
-
+        // Step 1: Read the file into a string
+        std::ifstream inFile(filePath);
         std::stringstream buffer;
-        buffer << fileStream.rdbuf();
-        std::string fileContents = buffer.str();
+        buffer << inFile.rdbuf();
+        std::string fileContent = buffer.str();
+        inFile.close();
 
-        fileStream.close();
+        std::cout << fileContent << std::endl;
 
+        // Step 2: Replace the pattern with the replacement string
         size_t pos = 0;
-        while ((pos = fileContents.find(pattern, pos)) != std::string::npos) {
-            fileContents.replace(pos, pattern.length(), replacement);
-            pos += replacement.length();
+        while ((pos = fileContent.find(pattern, pos)) != std::string::npos) {
+            fileContent.replace(pos, pattern.size(), replacement);
+            pos += replacement.size(); // Move the position after the replacement
         }
 
-        return fileContents;
+        std::cout << fileContent << std::endl;
+
+        // Step 3: Return the modified content
+        return fileContent;
     }
+
 
     bool remove_path(const std::filesystem::path& path_to_delete)
     {
@@ -141,7 +145,7 @@ namespace FS
         }
 
 
-        int nbEntries = zip.getNbEntries();
+        auto nbEntries = zip.getNbEntries();
         for (int i = 0; i < nbEntries; ++i) {
             ZipEntry entry = zip.getEntry(i);
             if (!entry.isNull()) {
@@ -178,7 +182,7 @@ namespace FS
             return false;
         }
 
-        int nbEntries = zip.getNbEntries();
+        auto nbEntries = zip.getNbEntries();
 
         if (nbEntries != 1) {
             std::cerr << "Zip archive must contain only one file" << std::endl;
@@ -268,8 +272,75 @@ namespace ui
         if (my_str->empty()) {
             my_str->resize(1);
         }
-        return ImGui::InputTextWithHint(label, hint, &my_str->front(), my_str->size() + 1, flags | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCharFilter, combinedCallback, (void*)my_str);
+        bool result = ImGui::InputTextWithHint(label, hint, &my_str->front(), my_str->size() + 1, flags | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCharFilter, combinedCallback, (void*)my_str);
+
+        // Resize the string to its actual length after the InputTextWithHint call
+        size_t actual_length = strlen(&my_str->front());
+        my_str->resize(actual_length);
+
+        return result;
     }
+
+
+    bool ConditionalButton(const char* label, bool condition, ButtonStyle style)
+    {
+        bool beginDisabledCalled = false;
+
+        if (!condition) {
+            ImGui::BeginDisabled(true);
+            beginDisabledCalled = true;
+        }
+
+        switch (style) {
+        case ButtonStyle::Red:
+            ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(82, 21, 21, 255));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(92, 25, 25, 255));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(123, 33, 33, 255));
+            break;
+        case ButtonStyle::Green:
+            ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(21, 82, 21, 255));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(25, 92, 25, 255));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(33, 123, 33, 255));
+            break;
+        }
+
+        bool pressed = ImGui::Button(label);
+
+        ImGui::PopStyleColor(3);
+
+        if (beginDisabledCalled) {
+            ImGui::EndDisabled();
+        }
+
+        return pressed;
+    }
+
+    bool GreenButton(const char* label)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(21, 82, 21, 255));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(25, 92, 25, 255));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(33, 123, 33, 255));
+
+        bool pressed = ImGui::Button(label);
+
+        ImGui::PopStyleColor(3);
+
+        return pressed;
+    }
+
+    bool RedButton(const char* label)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(82, 21, 21, 255));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(92, 25, 25, 255));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(123, 33, 33, 255));
+        
+        bool pressed = ImGui::Button(label);
+
+		ImGui::PopStyleColor(3);
+
+		return pressed;
+    }
+
 
 }
 
@@ -359,6 +430,8 @@ namespace Native
         if (GetUserName(username, &username_len)) {
             return std::string(username);
         }
+
+        return "";
     }
 
     std::string get_user_sid() {
@@ -477,33 +550,143 @@ namespace Native
 
         return ss.str();
     }
+
+    void write_protocol_keys(const std::string& progId, const std::string& protocol, const std::string& progHash)
+    {
+        HKEY hKey;
+        std::string keyName = "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\" + protocol + "\\UserChoice";
+        DWORD disposition;
+
+
+        if (RegCreateKeyExA(HKEY_CURRENT_USER, keyName.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, nullptr, &hKey, &disposition) == ERROR_SUCCESS)
+        {
+            RegSetKeyValueA(hKey, nullptr, "Hash", REG_SZ, progHash.c_str(), progHash.size() + 1);
+
+            RegSetKeyValueA(hKey, nullptr, "ProgId", REG_SZ, progId.c_str(), progId.size() + 1);
+
+            RegCloseKey(hKey);
+        }
+    }
+
+    std::map<std::string, std::string> get_progid_names()
+    {
+        HKEY hKey;
+        LONG lResult;
+        std::map<std::string, std::string> ProgIdNames;
+
+        // Open the registry key
+        lResult = RegOpenKeyEx(HKEY_CURRENT_USER, TEXT("SOFTWARE\\Classes"), 0, KEY_READ, &hKey);
+        if (lResult != ERROR_SUCCESS) {
+            // Handle error
+            return ProgIdNames; // Return an empty map
+        }
+
+        DWORD dwIndex = 0; // Index of the subkey.
+        DWORD dwSize = MAX_PATH; // Size of name buffer.
+        TCHAR szSubKeyName[MAX_PATH]; // Buffer for subkey name.
+
+        while (RegEnumKeyEx(hKey, dwIndex, szSubKeyName, &dwSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+            HKEY hSubKey;
+            // Open the subkey
+            if (RegOpenKeyEx(hKey, szSubKeyName, 0, KEY_READ, &hSubKey) == ERROR_SUCCESS) {
+                HKEY hApplicationKey, hShellOpenKey;
+                // Check for the presence of "Application" subkey
+                if (RegOpenKeyEx(hSubKey, TEXT("Application"), 0, KEY_READ, &hApplicationKey) == ERROR_SUCCESS) {
+                    // Check for the presence of "shell\open" subkey
+                    if (RegOpenKeyEx(hSubKey, TEXT("shell\\open"), 0, KEY_READ, &hShellOpenKey) == ERROR_SUCCESS) {
+                        // Check for the presence of "PackageId" value
+                        TCHAR szPackageId[MAX_PATH];
+                        DWORD dwBufferSize = sizeof(szPackageId);
+                        if (RegQueryValueEx(hShellOpenKey, TEXT("PackageId"), NULL, NULL, (LPBYTE)szPackageId, &dwBufferSize) == ERROR_SUCCESS) {
+                            std::string key = szPackageId;
+                            if (ProgIdNames.find(key) == ProgIdNames.end()) {
+                                std::string value = szSubKeyName;
+                                ProgIdNames[key] = value.substr(value.find_last_of('\\') + 1);
+                            }
+                        }
+                        RegCloseKey(hShellOpenKey);
+                    }
+                    RegCloseKey(hApplicationKey);
+                }
+                RegCloseKey(hSubKey);
+            }
+
+            // Reset variables for next iteration
+            dwSize = MAX_PATH;
+            dwIndex++;
+        }
+
+        // Close the main registry key
+        RegCloseKey(hKey);
+
+        return ProgIdNames;
+    }
+
+    PVOID get_peb_address(HANDLE ProcessHandle)
+    {
+        _NtQueryInformationProcess NtQueryInformationProcess =
+            (_NtQueryInformationProcess)GetProcAddress(
+                GetModuleHandleA("ntdll.dll"), "NtQueryInformationProcess");
+        PROCESS_BASIC_INFORMATION pbi;
+
+        NtQueryInformationProcess(ProcessHandle, 0, &pbi, sizeof(pbi), NULL);
+
+        return pbi.PebBaseAddress;
+    }
+
+    std::string get_commandline_arguments(DWORD pid)
+    {
+        HANDLE processHandle;
+        PVOID pebAddress;
+        PVOID rtlUserProcParamsAddress;
+        UNICODE_STRING commandLine;
+        WCHAR* commandLineContents;
+
+        if ((processHandle = OpenProcess(
+            PROCESS_QUERY_INFORMATION | /* required for NtQueryInformationProcess */
+            PROCESS_VM_READ, /* required for ReadProcessMemory */
+            FALSE, pid)) == 0)
+        {
+            return std::string();
+        }
+
+        pebAddress = get_peb_address(processHandle);
+
+        if (!ReadProcessMemory(processHandle,
+            &(((_PEB*)pebAddress)->ProcessParameters),
+            &rtlUserProcParamsAddress,
+            sizeof(PVOID), NULL))
+        {
+            return std::string();
+        }
+
+        if (!ReadProcessMemory(processHandle,
+            &(((_RTL_USER_PROCESS_PARAMETERS*)rtlUserProcParamsAddress)->CommandLine),
+            &commandLine, sizeof(commandLine), NULL))
+        {
+            return std::string();
+        }
+
+        commandLineContents = (WCHAR*)malloc(commandLine.Length);
+
+        if (!ReadProcessMemory(processHandle, commandLine.Buffer,
+            commandLineContents, commandLine.Length, NULL))
+        {
+            return std::string();
+        }
+
+        std::string command_line_str(commandLineContents, commandLineContents + commandLine.Length / 2);
+        CloseHandle(processHandle);
+        free(commandLineContents);
+
+        return command_line_str;
+    }
 }
 
 namespace StringUtils
 {
     bool contains_only(const std::string& s, char c) {
         return s.find_first_not_of(c) == std::string::npos;
-    }
-
-    std::vector<std::tuple<std::string, std::string, std::string>> extract_paths_and_folders(const std::string& input) noexcept {
-        std::vector<std::tuple<std::string, std::string, std::string>> namesAndPaths;
-
-        std::regex pattern(R"(Name\s*:\s*(.+)\s*PackageFullName\s*:\s*(.+)\s*InstallLocation\s*:\s*(.+))");
-        std::smatch match;
-
-        std::string::const_iterator searchStart(input.cbegin());
-
-        while (std::regex_search(searchStart, input.cend(), match, pattern)) {
-            std::string name = match[1].str();
-            std::string packageFullName = match[2].str();
-            std::string path = match[3].str();
-
-            namesAndPaths.push_back(std::make_tuple(name, packageFullName, path));
-
-            searchStart = match.suffix().first;
-        }
-
-        return namesAndPaths;
     }
 
     std::string replace_all(std::string str, const std::string& from, const std::string& to) {
@@ -533,7 +716,8 @@ namespace StringUtils
         // Copy the string to the allocated memory
         char* pMem = static_cast<char*>(GlobalLock(hMem));
         if (pMem) {
-            strcpy(pMem, data.c_str());
+            std::copy(data.begin(), data.end(), pMem);
+            pMem[data.size()] = '\0'; // null terminator
             GlobalUnlock(hMem);
         }
         else {
@@ -596,13 +780,145 @@ namespace StringUtils
 
 namespace Roblox
 {
-    void nuke_instance(const std::string& name, const std::string& path)
+    void nuke_instance(const std::string name, const std::string path)
     {
         std::string cmd = "Get-AppxPackage -Name \"" + name + "\" | Remove-AppxPackage";
         Native::run_powershell_command(cmd);
 
         FS::remove_path(path);
     }
+
+    std::vector<UserInstance> process_roblox_packages()
+    {
+        auto ProgIdNames = Native::get_progid_names();
+        std::vector<UserInstance> userInstancesVec;
+
+        // Run the PowerShell command
+        std::string output = Native::run_powershell_command("Get-AppxPackage ROBLOXCORPORATION.ROBLOX.* | Format-List -Property Name, PackageFullName, InstallLocation, PackageFamilyName, Version");
+
+        // Split the output into lines
+        std::stringstream ss(output);
+        std::string line;
+
+        std::regex pattern(R"(Name\s*:\s*(.+)\s*PackageFullName\s*:\s*(.+)\s*InstallLocation\s*:\s*(.+)\s*PackageFamilyName\s*:\s*(.+)\s*Version\s*:\s*(.+))");
+        std::smatch match;
+
+        std::string::const_iterator searchStart(output.cbegin());
+
+        while (std::regex_search(searchStart, output.cend(), match, pattern)) {
+            std::string name = match[1].str();
+            std::string packageFullName = match[2].str();
+            std::string installLocation = match[3].str();
+            std::string packageFamilyName = match[4].str();
+            std::string version = match[5].str();
+
+            std::regex nameRegex("\\.ROBLOX\\.([\\w+-]+)");
+            std::smatch nameMatch;
+
+            if (std::regex_search(name, nameMatch, nameRegex) && nameMatch.size() == 2) {
+                std::string username = nameMatch[1].str();
+
+                // Using a lambda to check if a user with the same username already exists in the vector
+                auto userExists = [&userInstancesVec, &username]() {
+                    return std::any_of(userInstancesVec.begin(), userInstancesVec.end(), [&username](const UserInstance& instance) {
+                        return instance.Username == username;
+                        });
+                };
+
+                if (ProgIdNames.find(packageFullName) != ProgIdNames.end() && !userExists()) {
+                    UserInstance instance;
+                    instance.Name = name;
+                    instance.Username = username;
+                    instance.PackageID = packageFullName;
+                    instance.AppID = ProgIdNames.at(packageFullName);
+                    instance.InstallLocation = installLocation;
+                    instance.PackageFamilyName = packageFamilyName;
+                    instance.Version = version;
+                    userInstancesVec.push_back(instance);
+                }
+            }
+
+            searchStart = match.suffix().first;
+        }
+
+        return userInstancesVec;
+    }
+
+    void launch_roblox(std::string AppID, const std::string& placeid)
+    {
+        std::string userSid = Native::get_user_sid();
+        std::string userExperience = Native::get_user_experience();
+        std::string hexDateTime = Native::get_hex_datetime();
+
+        static std::string protocol = "roblox";
+
+        std::string lower = protocol + userSid + AppID + hexDateTime + userExperience;
+        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+        Native::write_protocol_keys(AppID, protocol, Utils::get_hash(lower));
+        //call SHChangeNotify
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+
+        system(fmt::format("start roblox://placeId={}/", placeid).c_str());
+    }
+
+    void launch_roblox(std::string AppID, const std::string& placeid, const std::string& linkcode)
+    {
+        std::string userSid = Native::get_user_sid();
+        std::string userExperience = Native::get_user_experience();
+        std::string hexDateTime = Native::get_hex_datetime();
+
+        static std::string protocol = "roblox";
+
+        std::string lower = protocol + userSid + AppID + hexDateTime + userExperience;
+        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+        Native::write_protocol_keys(AppID, protocol, Utils::get_hash(lower));
+        //call SHChangeNotify
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+
+        //system(fmt::format("start roblox://placeId={}/", placeid).c_str());
+        //roblox://placeId=2414851778&linkCode=99685865445527485243539729691730/
+        std::string cmd = fmt::format("start roblox://placeId={}^&linkCode={}/", placeid, linkcode);
+        system(cmd.c_str());
+    }
+
+
+    std::set<DWORD> get_roblox_instances()
+    {
+        std::set<DWORD> pidSet;
+        PROCESSENTRY32 entry;
+        entry.dwSize = sizeof(PROCESSENTRY32);
+
+        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+
+        if (Process32First(snapshot, &entry) == TRUE)
+        {
+            while (Process32Next(snapshot, &entry) == TRUE)
+            {
+                if (strcmp(entry.szExeFile, "Windows10Universal.exe") == 0)
+                {
+                    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, entry.th32ProcessID);
+                    BOOL debugged = FALSE;
+                    CheckRemoteDebuggerPresent(hProcess, &debugged);
+                    if (debugged)
+                    {
+                        TerminateProcess(hProcess, 9);
+                    }
+                    else
+                    {
+                        pidSet.insert(entry.th32ProcessID);
+                    }
+                    CloseHandle(hProcess);
+                }
+            }
+        }
+
+        CloseHandle(snapshot);
+
+        return pidSet;
+    }
+
 }
 
 namespace Utils

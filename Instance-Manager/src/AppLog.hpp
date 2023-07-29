@@ -133,7 +133,7 @@ private:
 			// Process the log
 			Buf.append(log.data(), log.data() + log.size());
 			Buf.append("\n");  // Append newline here
-			int old_size = Buf.size() - log.size();
+			size_t old_size = Buf.size() - log.size();
 			for (int new_size = Buf.size(); old_size < new_size; old_size++)
 				if (Buf[old_size] == '\n')
 					LineOffsets.push_back(old_size + 1);
