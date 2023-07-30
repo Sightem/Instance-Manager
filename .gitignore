@@ -15,3 +15,4 @@ instances/
 
 # Exclude
 !vendor/bin
+/Instance-Manager/AppxManifest.xml

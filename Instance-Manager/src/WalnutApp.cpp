@@ -270,11 +270,15 @@ private:
 		{
 			log.add_log("Updating {}...", instances[idx].Name);
 
-			auto completionCallback = [&]() {
+			auto completionCallback = [idx, this]() {
+				std::string abs_path = std::filesystem::absolute(instances[idx].InstallLocation + "\\AppxManifest.xml").string();
+				std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
+				Native::run_powershell_command(cmd);
+
 				log.add_log("Update Done");
 			};
 
-			thread_manager.submit_task("updateInstance", [&]() {
+			thread_manager.submit_task("updateInstance", [idx, this]() {
 				Request win10req("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip");
 				win10req.initalize();
 				win10req.download_file("Windows10Universal.zip");
@@ -301,6 +305,20 @@ private:
 				}
 
 				std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
+				}, completionCallback);
+
+			thread_manager.submit_task("updateInstance", [&]() {
+				//this is fucking stupid, gotta improve request.hpp's api
+				Request appxml("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml");
+				appxml.initalize();
+				appxml.download_file("AppxManifest.xml");
+
+				std::string buf = FS::replace_pattern_in_file("AppxManifest.xml", "{INSTANCENAME}", instances[idx].Username);
+
+				std::ofstream ofs(instances[idx].InstallLocation + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
+				ofs << buf;
+				ofs.flush();
+				ofs.close();
 				}, completionCallback);
 
 			//close the popup
