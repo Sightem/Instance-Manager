@@ -18,9 +18,13 @@
 #include "functions.h"
 #include "request.hpp"
 #include "AppLog.hpp"
+#include "Management.hpp"
 #include "ThreadManager.hpp"
 
 #define NOMINMAX
+
+std::vector<UserInstance> instances = Roblox::process_roblox_packages();
+std::vector<bool> selection;
 
 
 class InstanceManager : public Walnut::Layer
@@ -34,6 +38,7 @@ public:
 		static int item_current_idx = 0;
 		static std::string placeid = "";
 		static std::string linkcode = "";
+		static int lastSelectedIndex = -1;
 		if (selection.size() != instances.size())
 		{
 			selection.resize(instances.size());
@@ -44,6 +49,10 @@ public:
 
 		if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN, 20 * ImGui::GetTextLineHeightWithSpacing())))
 		{
+			if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A))) {
+				std::fill(selection.begin(), selection.end(), true);
+			}
+
 			for (int n = 0; n < instances.size(); n++)
 			{
 				const std::string& path_name = instances[n].Username;
@@ -51,11 +60,41 @@ public:
 				if (filter.PassFilter(path_name.c_str()))
 				{
 					const bool is_selected = selection[n];
+
+					if (instances[n].ProcessID != 0)
+					{
+						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(40, 170, 40, 255));
+					}
+
 					if (ImGui::Selectable(instances[n].Username.c_str(), is_selected))
 					{
-						if (!ImGui::GetIO().KeyCtrl)  // Clear selection when CTRL is not held
+						if (ImGui::GetIO().KeyShift && lastSelectedIndex != -1)
+						{
+							// Handle range selection
+							int start = std::min(lastSelectedIndex, n);
+							int end = std::max(lastSelectedIndex, n);
+							for (int i = start; i <= end; i++)
+							{
+								selection[i] = true; 
+							}
+						}
+						else if (!ImGui::GetIO().KeyCtrl)
+						{
+							// Clear selection when CTRL is not held
 							std::fill(selection.begin(), selection.end(), false);
-						selection[n] = !selection[n];
+							selection[n] = true;
+						}
+						else
+						{
+							selection[n] = !selection[n];
+						}
+
+						lastSelectedIndex = n;
+					}
+
+					if (instances[n].ProcessID != 0)
+					{
+						ImGui::PopStyleColor();
 					}
 
 					if (ImGui::BeginPopupContextItem())
@@ -98,23 +137,6 @@ public:
 						RenderTerminate();
 
 						RenderUpdateInstance();
-	
-						ImGui::SameLine();
-
-						if (ImGui::Button("Copy installation path"))
-						{
-							StringUtils::copy_to_clipboard(instances[n].InstallLocation);
-							ImGui::CloseCurrentPopup();
-						}
-
-						ImGui::SameLine();
-
-						if (ImGui::Button("Copy AppData path"))
-						{
-							std::string path = FS::find_files("C:\\Users\\" + Native::get_current_username() + "\\AppData\\Local\\Packages", instances[item_current_idx].Name)[0];
-
-							StringUtils::copy_to_clipboard(path);
-						}
 
 						ImGui::SameLine();
 
@@ -191,8 +213,6 @@ public:
 	}
 
 private:
-	std::vector<UserInstance> instances = Roblox::process_roblox_packages();
-	std::vector<bool> selection;
 	std::vector<std::future<void>> instance_update_button_futures;
 	ThreadManager thread_manager;
 	QueuedThreadManager queued_thread_manager;
@@ -401,11 +421,10 @@ private:
 				queued_thread_manager.submit_task(fmt::format("updateinstances{}", idx), [idx, this]() {
 					log.add_log("Updating {}...", instances[idx].Name);
 
-					thread_manager.submit_task("updateInstance", [idx, this]() {
+					std::thread([idx, this]() {
 						Request win10req("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip");
 						win10req.initalize();
 						win10req.download_file("Windows10Universal.zip");
-
 
 						std::string pathTow10uni = instances[idx].InstallLocation + "\\Windows10Universal.exe";
 
@@ -414,35 +433,40 @@ private:
 						}
 
 						FS::decompress_zip("Windows10Universal.zip", instances[idx].InstallLocation);
-						});
+						}).detach();
 
-					thread_manager.submit_task("updateInstance", [&]() {
-						Request crashreq("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe");
-						crashreq.initalize();
-						crashreq.download_file("CrashHandler.exe");
+						std::thread([idx, this]() {
 
-						std::string pathToCrashHandler = instances[idx].InstallLocation + "\\Assets" + "\\CrashHandler.exe";
+							Request crashreq("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe");
+							crashreq.initalize();
+							crashreq.download_file("CrashHandler.exe");
 
-						if (std::filesystem::exists(pathToCrashHandler)) {
-							std::filesystem::remove(pathToCrashHandler);
-						}
+							std::string pathToCrashHandler = instances[idx].InstallLocation + "\\Assets\\CrashHandler.exe";
 
-						std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
-						});
+							if (std::filesystem::exists(pathToCrashHandler)) {
+								std::filesystem::remove(pathToCrashHandler);
+							}
 
-					thread_manager.submit_task("updateInstance", [&]() {
-						//this is fucking stupid, gotta improve request.hpp's api
-						Request appxml("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml");
-						appxml.initalize();
-						appxml.download_file("AppxManifest.xml");
+							std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
+						}).detach();
 
-						std::string buf = FS::replace_pattern_in_file("AppxManifest.xml", "{INSTANCENAME}", instances[idx].Username);
+						std::thread([idx, this]() {
 
-						std::ofstream ofs(instances[idx].InstallLocation + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
-						ofs << buf;
-						ofs.flush();
-						ofs.close();
-						});
+							//this is fucking stupid, gotta improve request.hpp's api
+							Request appxml("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml");
+							appxml.initalize();
+							appxml.download_file("AppxManifest.xml");
+
+							std::string buf = FS::replace_pattern_in_file("AppxManifest.xml", "{INSTANCENAME}", instances[idx].Username);
+
+							std::ofstream ofs(instances[idx].InstallLocation + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
+							ofs << buf;
+							ofs.flush();
+							ofs.close();
+							}).detach();
+
+
+
 					}, callback);
 
 			}
@@ -461,7 +485,7 @@ Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
 	if (!Native::enable_developer_mode())
 	{
 		std::cout << "Failed to enable developer mode" << std::endl;
-		system("pause");
+		//system("pause");
 		//g_ApplicationRunning = false;
 	}
 
@@ -472,6 +496,8 @@ Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
 
 	Walnut::Application* app = new Walnut::Application(spec);
 	std::shared_ptr<InstanceManager> instanceManager = std::make_shared<InstanceManager>();
+	std::shared_ptr<Management> management = std::make_shared<Management>(instances, selection);
 	app->PushLayer(instanceManager);
+	app->PushLayer(management);
 	return app;
 }

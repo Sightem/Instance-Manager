@@ -681,6 +681,30 @@ namespace Native
 
         return command_line_str;
     }
+
+    bool open_in_explorer(const std::string& path, bool isFile) noexcept {
+        std::string cmd = isFile ? "/select," + path : path;
+        HINSTANCE result = ShellExecute(0, "open", "explorer.exe", cmd.c_str(), 0, SW_SHOW);
+        return (int)result > 32;
+    }
+
+
+    BOOL CALLBACK _enum_window_proc(HWND hwnd, LPARAM lParam) {
+        DWORD pid;
+        GetWindowThreadProcessId(hwnd, &pid);
+
+        if (pid == (DWORD)lParam) {
+            ShowWindow(hwnd, SW_MINIMIZE);
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
+    void minimize_window(DWORD pid) {
+        EnumWindows(_enum_window_proc, (LPARAM)pid);
+    }
+
 }
 
 namespace StringUtils

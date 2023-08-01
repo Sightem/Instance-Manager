@@ -89,6 +89,10 @@ namespace Native
     PVOID get_peb_address(HANDLE ProcessHandle);
 
     std::string get_commandline_arguments(DWORD pid);
+
+    bool open_in_explorer(const std::string& path, bool isFile = false) noexcept;
+
+    void minimize_window(DWORD pid);
 }
 
 namespace StringUtils
