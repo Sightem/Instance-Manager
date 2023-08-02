@@ -36,8 +36,6 @@ public:
 
 		static bool dont_ask_me_next_time = false;
 		static int item_current_idx = 0;
-		static std::string placeid = "";
-		static std::string linkcode = "";
 		static int lastSelectedIndex = -1;
 		if (selection.size() != instances.size())
 		{
@@ -117,24 +115,16 @@ public:
 						ImGui::Text(selectedNames.c_str());
 
 						ImGui::Separator();
-
-						ImGui::PushItemWidth(130.0f);
-
-						ui::InputTextWithHint("##placeid", "PlaceID", &placeid);
-
-						ImGui::SameLine();
-
-						ui::InputTextWithHint("##linkcode", "VIP link code", &linkcode);
-
-						ImGui::PopItemWidth();
-
-						ImGui::SameLine();
-
-						RenderLaunch(placeid, linkcode);
-
-						ImGui::SameLine();
 						
-						RenderTerminate();
+						if (ImGui::TreeNode("Launch control"))
+						{
+							RenderLaunch();
+							
+							ImGui::SameLine();
+							
+							RenderTerminate();
+							ImGui::TreePop();
+						};
 
 						RenderUpdateInstance();
 
@@ -208,8 +198,6 @@ public:
 		log.draw("Log");
 
 		ImGui::End();
-
-		ImGui::ShowDemoWindow();
 	}
 
 private:
@@ -257,12 +245,28 @@ private:
 		}
 	}
 
-	void RenderLaunch(std::string placeid, std::string linkcode)
+	void RenderLaunch()
 	{
 		bool any_selected = std::any_of(selection.begin(), selection.end(), [](bool selected) { return selected; });
 
 		if (!any_selected)
 			return;
+
+		static std::string placeid = "";
+		static std::string linkcode = "";
+
+		ImGui::PushItemWidth(130.0f);
+
+		ui::InputTextWithHint("##placeid", "PlaceID", &placeid);
+
+		ImGui::SameLine();
+
+		ui::InputTextWithHint("##linkcode", "VIP link code", &linkcode);
+
+		ImGui::PopItemWidth();
+
+		ImGui::SameLine();
+
 
 		if (ui::GreenButton("Launch"))
 		{

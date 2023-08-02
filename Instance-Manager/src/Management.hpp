@@ -18,7 +18,7 @@ class Management : public Walnut::Layer
 
 	virtual void OnUIRender() override
 	{
-		ImGui::Begin("Management");
+		ImGui::Begin("File Management");
 
         if (ImGui::Button("Refresh"))
         {
