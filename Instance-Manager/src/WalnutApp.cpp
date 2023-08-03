@@ -43,8 +43,20 @@ public:
 
 		if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN, 20 * ImGui::GetTextLineHeightWithSpacing())))
 		{
-			if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A))) {
-				std::fill(selection.begin(), selection.end(), true);
+			if (!ImGui::IsAnyItemActive() && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A)))
+			{
+				for (int n = 0; n < instances.size(); ++n)
+				{
+					const std::string& path_name = instances[n].Username;
+					if (filter.PassFilter(path_name.c_str()))
+					{
+						selection[n] = true;
+					}
+					else
+					{
+						selection[n] = false;
+					}
+				}
 			}
 
 			for (int n = 0; n < instances.size(); ++n)
@@ -219,8 +231,6 @@ public:
 		applog.draw("Log");
 
 		ImGui::End();
-
-		ImGui::ShowDemoWindow();
 	}
 
 private:
