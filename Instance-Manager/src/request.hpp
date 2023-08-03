@@ -15,6 +15,8 @@
 
 typedef std::map<std::string, std::string> headers_t;
 typedef headers_t cookies_t;
+template<typename T>
+concept ByteLike = sizeof(T) == 1 && std::is_integral_v<T>;
 
 struct Response
 {
@@ -149,26 +151,22 @@ public:
         return this->execute();
     }
     /**
-    * @brief Download a file from the specified URL using a GET request and save it to the given file path
-    * @param file_path The path where the downloaded file should be saved
-    * @return The result of the cURL request
-    */
-    int download_file(const std::string& file_path)
+     * @brief Download data from the specified URL using a GET request and save it to the provided buffer
+     * @tparam T A ByteLike type representing the data type of the buffer (e.g., char, unsigned char, char8_t, etc.)
+     * @param buffer A reference to a vector where the downloaded data should be saved
+     * @return The result of the cURL request
+     */
+    template<ByteLike T>
+    int download_file(std::vector<T>& buffer)
     {
-        std::ofstream ofs(file_path, std::ios::out | std::ios::binary);
-
         this->prepare();
 
         curl_easy_setopt(m_curl, CURLOPT_HTTPGET, 1L);
-        curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, _m_fileWriteFunction);
-        curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &ofs);
+        curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, _m_vectorWriteFunction<T>);
+        curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &buffer);
         curl_easy_setopt(m_curl, CURLOPT_FAILONERROR, 1L);
 
-        int result = curl_easy_perform(m_curl);
-
-        ofs.close();
-
-        return result;
+        return curl_easy_perform(m_curl);
     }
     /**
      * @brief prepare new form data
@@ -294,12 +292,13 @@ private:
         return size * nmemb;
     }
 
-    static size_t _m_fileWriteFunction(void* ptr, size_t size, size_t nmemb, void* userdata)
+    template<ByteLike T>
+    static size_t _m_vectorWriteFunction(void* ptr, size_t size, size_t nmemb, void* userdata)
     {
-        auto* ofs = static_cast<std::ofstream*>(userdata);
-        size_t bytes_written = size * nmemb;
-        ofs->write(static_cast<const char*>(ptr), bytes_written);
-        return bytes_written;
+        auto* buffer = static_cast<std::vector<T>*>(userdata);
+        size_t bytes_received = size * nmemb;
+        buffer->insert(buffer->end(), reinterpret_cast<T*>(ptr), reinterpret_cast<T*>(ptr) + bytes_received);
+        return bytes_received;
     }
 
     std::string m_url;

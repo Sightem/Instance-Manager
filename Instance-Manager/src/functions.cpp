@@ -3,6 +3,7 @@
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <fmt/format.h>
+#include <tinyxml2.h>
 #include "md5.h"
 #include <map>
 
@@ -81,6 +82,26 @@ namespace FS
         buffer << inFile.rdbuf();
         std::string fileContent = buffer.str();
         inFile.close();
+
+        std::cout << fileContent << std::endl;
+
+        // Step 2: Replace the pattern with the replacement string
+        size_t pos = 0;
+        while ((pos = fileContent.find(pattern, pos)) != std::string::npos) {
+            fileContent.replace(pos, pattern.size(), replacement);
+            pos += replacement.size(); // Move the position after the replacement
+        }
+
+        std::cout << fileContent << std::endl;
+
+        // Step 3: Return the modified content
+        return fileContent;
+    }
+
+    std::string replace_pattern_in_content(const std::vector<char8_t>& contentVec, const std::string& pattern, const std::string& replacement)
+    {
+        // Step 1: Convert the vector to a string
+        std::string fileContent(contentVec.begin(), contentVec.end());
 
         std::cout << fileContent << std::endl;
 
@@ -943,6 +964,56 @@ namespace Roblox
         return pidSet;
     }
 
+    ModifyXMLError modify_settings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue)
+    {
+        tinyxml2::XMLDocument doc;
+        tinyxml2::XMLError eResult = doc.LoadFile(filePath.c_str());
+        if (eResult != tinyxml2::XML_SUCCESS) {
+            return ModifyXMLError::LoadError;
+        }
+
+        tinyxml2::XMLElement* itemElement = doc.FirstChildElement("roblox")->FirstChildElement("Item");
+        if (!itemElement || std::string(itemElement->Attribute("class")) != "UserGameSettings") {
+            return ModifyXMLError::NotFound;
+        }
+
+        tinyxml2::XMLElement* propertiesElement = itemElement->FirstChildElement("Properties");
+        if (!propertiesElement) {
+            return ModifyXMLError::NotFound;
+        }
+
+        tinyxml2::XMLElement* graphicsQualityElement = propertiesElement->FirstChildElement("int");
+        while (graphicsQualityElement && std::string(graphicsQualityElement->Attribute("name")) != "GraphicsQualityLevel") {
+            graphicsQualityElement = graphicsQualityElement->NextSiblingElement("int");
+        }
+        if (graphicsQualityElement) {
+            graphicsQualityElement->SetText(newGraphicsQualityValue);
+        }
+
+        tinyxml2::XMLElement* masterVolumeElement = propertiesElement->FirstChildElement("float");
+        while (masterVolumeElement && std::string(masterVolumeElement->Attribute("name")) != "MasterVolume") {
+            masterVolumeElement = masterVolumeElement->NextSiblingElement("float");
+        }
+        if (masterVolumeElement) {
+            masterVolumeElement->SetText(newMasterVolumeValue);
+        }
+
+        tinyxml2::XMLElement* savedQualityElement = propertiesElement->FirstChildElement("token");
+        while (savedQualityElement && std::string(savedQualityElement->Attribute("name")) != "SavedQualityLevel") {
+            savedQualityElement = savedQualityElement->NextSiblingElement("token");
+        }
+        if (savedQualityElement) {
+            savedQualityElement->SetText(newSavedQualityValue);
+        }
+
+        eResult = doc.SaveFile(filePath.c_str());
+        if (eResult != tinyxml2::XML_SUCCESS) {
+            return ModifyXMLError::SaveError;
+        }
+
+        return ModifyXMLError::Success;
+    }
+
 }
 
 namespace Utils
@@ -959,6 +1030,7 @@ namespace Utils
         }
     }
 
+    //this is some Cnile shit, gotta fix it
     int to_int32(const unsigned char* bytes, int offset)
     {
         return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24));
@@ -1124,5 +1196,18 @@ namespace Utils
         else {
             throw std::runtime_error("Missing base info");
         }
+    }
+
+    bool save_to_file(const std::string& file_path, const std::vector<char8_t>& buffer)
+    {
+        std::ofstream ofs(file_path, std::ios::out | std::ios::binary);
+
+        if (!ofs.is_open())
+            return false;
+
+        ofs.write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+        ofs.close();
+
+        return true;
     }
 }

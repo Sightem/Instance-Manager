@@ -1,3 +1,4 @@
+#pragma once
 #include <imgui.h>
 #include <thread>
 #include <condition_variable>
@@ -20,7 +21,7 @@ public:
 	~AppLog()
 	{
 		{
-			std::unique_lock<std::mutex> lock(mtx);
+			std::scoped_lock lock(mtx);
 			stopWorker = true;
 		}
 		cv.notify_all();
@@ -45,7 +46,7 @@ public:
 		std::string message = timestamp + fmt::format(fmt::runtime(fmt), args...);
 
 		{
-			std::unique_lock<std::mutex> lock(mtx);
+			std::scoped_lock lock(mtx);
 			logsQueue.push(message);
 		}
 		cv.notify_one();
@@ -166,4 +167,4 @@ private:
 	std::queue<std::string> logsQueue;
 	bool stopWorker = false;
 	std::thread workerThread;
-};
+} applog;

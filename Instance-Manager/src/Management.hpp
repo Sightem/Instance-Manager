@@ -46,6 +46,7 @@ class Management : public Walnut::Layer
 private:
 	std::vector<UserInstance>& instances;
 	std::vector<bool>& selection;
+
     struct DirectoryEntryInfo {
         fs::directory_entry entry;
         std::string filename;
@@ -137,12 +138,13 @@ private:
 
                 if (full_src_path == dst_path)
                 {
-                    std::cerr << "Source and destination are the same. Skipping copy for " << full_src_path << '\n';
+                    applog.add_log("Source and destination are the same. Skipping copy for {}", full_src_path.string());
                     continue;  // Skip the copy operation for this iteration
                 }
 
                 if (!FS::copy_directory(full_src_path, dst_path)) {
                     std::cerr << "Failed to copy directory " << full_src_path << " to " << dst_path << '\n';
+                    applog.add_log("Failed to copy directory {} to {}", full_src_path.string(), dst_path.string());
                 }
             }
         }

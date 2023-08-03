@@ -1,4 +1,3 @@
-#define NOMINMAX
 #include "Walnut/Application.h"
 #include "Walnut/EntryPoint.h"
 
@@ -21,11 +20,8 @@
 #include "Management.hpp"
 #include "ThreadManager.hpp"
 
-#define NOMINMAX
-
 std::vector<UserInstance> instances = Roblox::process_roblox_packages();
 std::vector<bool> selection;
-
 
 class InstanceManager : public Walnut::Layer
 {
@@ -51,7 +47,7 @@ public:
 				std::fill(selection.begin(), selection.end(), true);
 			}
 
-			for (int n = 0; n < instances.size(); n++)
+			for (int n = 0; n < instances.size(); ++n)
 			{
 				const std::string& path_name = instances[n].Username;
 
@@ -71,7 +67,7 @@ public:
 							// Handle range selection
 							int start = std::min(lastSelectedIndex, n);
 							int end = std::max(lastSelectedIndex, n);
-							for (int i = start; i <= end; i++)
+							for (int i = start; i <= end; ++i)
 							{
 								selection[i] = true; 
 							}
@@ -99,7 +95,7 @@ public:
 					{
 						std::string selectedNames = "Selected: ";
 						bool isFirst = true;
-						for (int i = 0; i < selection.size(); i++)
+						for (int i = 0; i < selection.size(); ++i)
 						{
 							if (selection[i])
 							{
@@ -118,13 +114,38 @@ public:
 						
 						if (ImGui::TreeNode("Launch control"))
 						{
-							RenderLaunch();
+							static std::string placeid = "";
+							static std::string linkcode = "";
+
+							ImGui::PushItemWidth(130.0f);
+
+							ui::InputTextWithHint("##placeid", "PlaceID", &placeid);
+
+							ImGui::SameLine();
+
+							ui::InputTextWithHint("##linkcode", "VIP link code", &linkcode);
+
+							ImGui::PopItemWidth();
+
+							ImGui::SameLine();
+
+							RenderLaunch(placeid, linkcode);
 							
 							ImGui::SameLine();
 							
 							RenderTerminate();
 							ImGui::TreePop();
 						};
+
+						if (ImGui::TreeNode("Settings control"))
+						{
+							RenderSettings();
+
+							ImGui::TreePop();
+						};
+
+						ImGui::Separator();
+
 
 						RenderUpdateInstance();
 
@@ -152,7 +173,7 @@ public:
 							ImGui::PopStyleVar();
 
 							if (ImGui::Button("OK", ImVec2(523.0f / 2.0f, 0))) {
-								log.add_log("Deleting selected instances...");
+								applog.add_log("Deleting selected instances...");
 
 								std::set<int> selected_indices;
 								for (int i = 0; i < selection.size(); ++i) {
@@ -195,115 +216,94 @@ public:
 
 		ImGui::Separator();
 
-		log.draw("Log");
+		applog.draw("Log");
 
 		ImGui::End();
+
+		ImGui::ShowDemoWindow();
 	}
 
 private:
 	std::vector<std::future<void>> instance_update_button_futures;
 	ThreadManager thread_manager;
 	QueuedThreadManager queued_thread_manager;
-	AppLog log;
 
-	void LaunchInstances(const std::set<int>& indices, std::string placeid, std::string linkcode)
+	void RenderLaunch(std::string placeid, std::string linkcode)
 	{
-		log.add_log("Launching instances...");
-
-		for (auto idx : indices)
-		{
-			auto callback = [idx, this]() {
-				log.add_log("Launched {}", instances[idx].Username);
-			};
-
-			log.add_log("Launching {}...", instances[idx].Username);
-
-			queued_thread_manager.submit_task("launchInstance" + std::to_string(idx), [idx, placeid, linkcode, this]() {
-				std::string appid = instances[idx].AppID;
-
-				if (linkcode.empty())
-					Roblox::launch_roblox(instances[idx].AppID, placeid);
-				else
-					Roblox::launch_roblox(instances[idx].AppID, placeid, linkcode);
-
-				//try 5 times to find the roblox process
-				for (int i = 0; i < 5; i++)
-				{
-					auto pids = Roblox::get_roblox_instances();
-					for (auto pid : pids)
-					{
-						std::string command_line = Native::get_commandline_arguments(pid);
-						if (command_line.find(instances[idx].Username) != std::string::npos)
-						{
-							instances[idx].ProcessID = pid;
-							return;
-						}
-					}
-					std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-				}
-				}, callback);
-		}
-	}
-
-	void RenderLaunch()
-	{
-		bool any_selected = std::any_of(selection.begin(), selection.end(), [](bool selected) { return selected; });
-
-		if (!any_selected)
+		if (!AnyInstanceSelected())
 			return;
-
-		static std::string placeid = "";
-		static std::string linkcode = "";
-
-		ImGui::PushItemWidth(130.0f);
-
-		ui::InputTextWithHint("##placeid", "PlaceID", &placeid);
-
-		ImGui::SameLine();
-
-		ui::InputTextWithHint("##linkcode", "VIP link code", &linkcode);
-
-		ImGui::PopItemWidth();
-
-		ImGui::SameLine();
 
 
 		if (ui::GreenButton("Launch"))
 		{
-			std::set<int> selected_indices;
-			for (int i = 0; i < selection.size(); ++i)
-			{
-				if (selection[i])
-				{
-					selected_indices.insert(i);
-				}
-			}
+			ForEachSelectedInstance([this, placeid, linkcode](int idx) {
+				auto callback = [idx, this]() {
+					applog.add_log("Launched {}", instances[idx].Username);
+				};
 
-			LaunchInstances(selected_indices, placeid, linkcode);
-			ImGui::CloseCurrentPopup();
+				applog.add_log("Launching {}...", instances[idx].Username);
+
+				queued_thread_manager.submit_task("launchInstance" + std::to_string(idx), [idx, placeid, linkcode, this]() {
+					std::string appid = instances[idx].AppID;
+
+					if (linkcode.empty())
+						Roblox::launch_roblox(instances[idx].AppID, placeid);
+					else
+						Roblox::launch_roblox(instances[idx].AppID, placeid, linkcode);
+
+					//try 5 times to find the roblox process
+					for (int i = 0; i < 5; i++)
+					{
+						auto pids = Roblox::get_roblox_instances();
+						for (auto pid : pids)
+						{
+							std::string command_line = Native::get_commandline_arguments(pid);
+							if (command_line.find(instances[idx].Username) != std::string::npos)
+							{
+								instances[idx].ProcessID = pid;
+								return;
+							}
+						}
+						std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+					}
+					}, callback);
+			});
+			
+		}
+	}
+
+	void RenderSettings()
+	{
+		if (!AnyInstanceSelected())
+			return;
+
+		static int graphicsquality = 1;
+		ImGui::InputInt("Graphics Quality", &graphicsquality);
+
+		static float newmastervolume = 0.8f;
+		ImGui::InputFloat("Master volume", &newmastervolume, 0.01f, 1.0f, "%.3f");
+
+		static int newsavedquality = 1;
+		ImGui::InputInt("Saved Graphics Quality", &newsavedquality);
+
+		if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
+			ForEachSelectedInstance([this](int idx) {
+				std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::get_current_username(), instances[idx].PackageFamilyName);
+
+				if (std::filesystem::exists(path))
+					Roblox::modify_settings(path, graphicsquality, newmastervolume, newsavedquality);
+			});
 		}
 	}
 
 	void RenderTerminate()
 	{
-		bool any_selected = std::any_of(selection.begin(), selection.end(), [](bool selected) { return selected; });
-
-		if (!any_selected)
+		if (!AnyInstanceSelected())
 			return;
 
 		if (ui::RedButton("Terminate"))
 		{
-			std::set<int> selected_indices;
-			for (int i = 0; i < selection.size(); ++i)
-			{
-				if (selection[i])
-				{
-					selected_indices.insert(i);
-				}
-			}
-
-			for (auto idx : selected_indices)
-			{
+			ForEachSelectedInstance([this](int idx) {
 				if (instances[idx].ProcessID != 0)
 				{
 					HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, instances[idx].ProcessID);
@@ -312,13 +312,13 @@ private:
 
 					instances[idx].ProcessID = 0;
 				}
-			}
+			});
 		}
 	}
 
 	void DeleteInstances(const std::set<int>& indices)
 	{
-		log.add_log("Deleting instances...");
+		applog.add_log("Deleting instances...");
 
 		// It's safer to erase items from a vector in reverse order
 		auto sorted_indices = indices;
@@ -326,19 +326,25 @@ private:
 		{
 			int idx = *it;
 			thread_manager.submit_task("deleteInstance", [idx, this]() {
-				Roblox::nuke_instance(instances[idx].Name, instances[idx].InstallLocation);
-				instances.erase(instances.begin() + idx);
-				}, [&]() {
-					log.add_log("Instance Deleted");
-				});
+				try
+				{
+					Roblox::nuke_instance(instances[idx].Name, instances[idx].InstallLocation);
+					instances.erase(instances.begin() + idx);
+				}
+				catch (const std::exception& e)
+				{
+					applog.add_log("Failed to delete instance {}: {}", instances[idx].Name, e.what());
+				}
+
+			}, [&]() {
+				applog.add_log("Instance Deleted");
+			});
 		}
 	}
 
 	void RenderRemoveInstances(const std::vector<bool>& selection, bool* dont_ask_me_next_time)
 	{
-		bool any_selected = std::any_of(selection.begin(), selection.end(), [](bool selected) { return selected; });
-
-		if (!any_selected)
+		if (!AnyInstanceSelected())
 			return;
 
 		if (ui::ConditionalButton("Remove Selected Instances", true, ui::ButtonStyle::Red))
@@ -366,10 +372,10 @@ private:
 	{
 		if (ui::ConditionalButton("Create instance", !(instance_name_buf.empty() || StringUtils::contains_only(instance_name_buf, '\0')), ui::ButtonStyle::Green))
 		{
-			log.add_log("Creating instance...");
+			applog.add_log("Creating instance...");
 
 			auto completionCallback = [&]() {
-				log.add_log("Instance created");
+				applog.add_log("Instance created");
 				instances = Roblox::process_roblox_packages();
 				selection.resize(instances.size(), false);
 			};
@@ -388,47 +394,37 @@ private:
 				std::string abs_path = std::filesystem::absolute("instances\\" + instance_name_buf + "\\AppxManifest.xml").string();
 				std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
  				Native::run_powershell_command(cmd);
-				}, completionCallback);
+			}, completionCallback);
 		}
 	}
 
 	void RenderUpdateInstance()
 	{
-		bool any_selected = std::any_of(selection.begin(), selection.end(), [](bool selected) { return selected; });
-
-		if (!any_selected)
+		if (!AnyInstanceSelected())
 			return;
 
 
 		if (ImGui::Button("Update Instance"))
 		{
-			std::set<int> selected_indices;
-			for (int i = 0; i < selection.size(); ++i)
-			{
-				if (selection[i])
-				{
-					selected_indices.insert(i);
-				}
-			}
-
-			for (auto idx : selected_indices)
-			{
+			ForEachSelectedInstance([this](int idx) {
 				auto callback = [idx, this]() {
 					std::string abs_path = std::filesystem::absolute(instances[idx].InstallLocation + "\\AppxManifest.xml").string();
 					std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
 					Native::run_powershell_command(cmd);
 
-					log.add_log("Update Done");
+					applog.add_log("Update Done");
 				};
 
 
 				queued_thread_manager.submit_task(fmt::format("updateinstances{}", idx), [idx, this]() {
-					log.add_log("Updating {}...", instances[idx].Name);
-
+					applog.add_log("Updating {}...", instances[idx].Name);
 					std::thread([idx, this]() {
+						std::vector<char8_t> buffer;
 						Request win10req("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip");
 						win10req.initalize();
-						win10req.download_file("Windows10Universal.zip");
+						win10req.download_file<char8_t>(buffer);
+
+						Utils::save_to_file("Windows10Universal.zip", buffer);
 
 						std::string pathTow10uni = instances[idx].InstallLocation + "\\Windows10Universal.exe";
 
@@ -439,43 +435,72 @@ private:
 						FS::decompress_zip("Windows10Universal.zip", instances[idx].InstallLocation);
 						}).detach();
 
-						std::thread([idx, this]() {
+					std::thread([idx, this]() {
+						std::vector<char8_t> buffer;
+						Request crashreq("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe");
+						crashreq.initalize();
+						crashreq.download_file<char8_t>(buffer);
 
-							Request crashreq("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe");
-							crashreq.initalize();
-							crashreq.download_file("CrashHandler.exe");
+						Utils::save_to_file("CrashHandler.exe", buffer);
 
-							std::string pathToCrashHandler = instances[idx].InstallLocation + "\\Assets\\CrashHandler.exe";
+						std::string pathToCrashHandler = instances[idx].InstallLocation + "\\Assets\\CrashHandler.exe";
 
-							if (std::filesystem::exists(pathToCrashHandler)) {
-								std::filesystem::remove(pathToCrashHandler);
-							}
+						if (std::filesystem::exists(pathToCrashHandler)) {
+							std::filesystem::remove(pathToCrashHandler);
+						}
 
-							std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
+						std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
 						}).detach();
 
-						std::thread([idx, this]() {
+					std::thread([idx, this]() {
+						std::vector<char8_t> buffer;
 
-							//this is fucking stupid, gotta improve request.hpp's api
-							Request appxml("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml");
-							appxml.initalize();
-							appxml.download_file("AppxManifest.xml");
+						Request appxml("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml");
+						appxml.initalize();
+						appxml.download_file<char8_t>(buffer);
 
-							std::string buf = FS::replace_pattern_in_file("AppxManifest.xml", "{INSTANCENAME}", instances[idx].Username);
+						std::string buf = FS::replace_pattern_in_content(buffer, "{INSTANCENAME}", instances[idx].Username);
 
-							std::ofstream ofs(instances[idx].InstallLocation + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
-							ofs << buf;
-							ofs.flush();
-							ofs.close();
-							}).detach();
-
-
+						std::ofstream ofs(instances[idx].InstallLocation + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
+						ofs << buf;
+						ofs.flush();
+						ofs.close();
+						}).detach();
 
 					}, callback);
+			});
 
-			}
+
 			//close the popup
 			ImGui::CloseCurrentPopup();
+		}
+	}
+
+	bool AnyInstanceSelected() const
+	{
+		return std::any_of(selection.begin(), selection.end(), [](bool selected) { return selected; });
+	}
+
+	std::set<int> GetSelectedIndices() const
+	{
+		std::set<int> selected_indices;
+		for (int i = 0; i < selection.size(); ++i)
+		{
+			if (selection[i])
+			{
+				selected_indices.insert(i);
+			}
+		}
+		return selected_indices;
+	}
+
+	template <typename Func>
+	void ForEachSelectedInstance(Func func) const
+	{
+		auto selected_indices = GetSelectedIndices();
+		for (auto idx : selected_indices)
+		{
+			func(idx);
 		}
 	}
 

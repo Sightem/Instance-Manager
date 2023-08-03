@@ -41,6 +41,9 @@ namespace FS
 
     std::string replace_pattern_in_file(const std::filesystem::path& filePath, const std::string& pattern, const std::string& replacement);
 
+    std::string replace_pattern_in_content(const std::vector<char8_t>& contentVec, const std::string& pattern, const std::string& replacement);
+
+
     bool remove_path(const std::filesystem::path& path_to_delete);
 
     bool decompress_zip(const std::string& zipPath, const std::string& destination);
@@ -118,6 +121,15 @@ namespace Roblox
     void launch_roblox(std::string AppID, const std::string& placeid, const std::string& linkcode);
 
     std::set<DWORD> get_roblox_instances();
+
+    enum ModifyXMLError {
+        Success = 0,
+        LoadError,
+        NotFound,
+        SaveError
+    };
+
+    ModifyXMLError modify_settings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue);
 }
 
 namespace Utils
@@ -128,5 +140,7 @@ namespace Utils
     const unsigned char* to_bytes(int64_t value);
     const unsigned char* take_bytes(const unsigned char* input, int count);
     std::string get_hash(const std::string& baseInfo);
+
+    bool save_to_file(const std::string& file_path, const std::vector<char8_t>& buffer);
 
 }
