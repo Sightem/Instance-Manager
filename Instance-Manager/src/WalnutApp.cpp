@@ -213,7 +213,7 @@ public:
 
 		static std::string instance_name_buf;
 
-		ImGui::PushItemWidth(ImGui::GetWindowWidth() - 162.0f);
+		ImGui::PushItemWidth(ImGui::GetWindowWidth() - 315.0f);
 
 		ui::InputTextWithHint("##NameStr", "Input the instance name here...", &instance_name_buf);
 
@@ -225,6 +225,10 @@ public:
 		ImGui::SameLine();
 
 		RenderCreateInstance(instance_name_buf);
+
+		ImGui::SameLine();
+
+		RenderUpdateTemplate();
 
 		ImGui::Separator();
 
@@ -281,6 +285,7 @@ private:
 			
 		}
 	}
+
 
 	void RenderSettings()
 	{
@@ -405,6 +410,69 @@ private:
 				std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
  				Native::run_powershell_command(cmd);
 			}, completionCallback);
+		}
+	}
+
+	//refactor this later
+	void RenderUpdateTemplate()
+	{
+		auto callback = [&]() {
+			applog.add_log("Template updated");
+		};
+
+		if (ImGui::Button("Update Template"))
+		{
+			applog.add_log("Updating template...");
+
+			queued_thread_manager.submit_task("updatetemplate", [this]() {
+
+				std::thread([this]() {
+					std::vector<char8_t> buffer;
+					Request win10req("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip");
+					win10req.initalize();
+					win10req.download_file<char8_t>(buffer);
+
+					Utils::save_to_file("Windows10Universal.zip", buffer);
+
+					std::string pathTow10uni = "Template\\Windows10Universal.exe";
+
+					if (std::filesystem::exists(pathTow10uni)) {
+						std::filesystem::remove(pathTow10uni);
+					}
+
+					FS::decompress_zip("Windows10Universal.zip", "Template");
+				}).detach();
+
+				std::thread([this]() {
+					std::vector<char8_t> buffer;
+					Request crashreq("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe");
+					crashreq.initalize();
+					crashreq.download_file<char8_t>(buffer);
+
+					Utils::save_to_file("CrashHandler.exe", buffer);
+
+					std::string pathToCrashHandler = "Template\\Assets\\CrashHandler.exe";
+
+					if (std::filesystem::exists(pathToCrashHandler)) {
+						std::filesystem::remove(pathToCrashHandler);
+					}
+
+					std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
+				}).detach();
+
+				std::thread([this]() {
+					std::vector<char8_t> buffer;
+
+					Request appxml("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml");
+					appxml.initalize();
+					appxml.download_file<char8_t>(buffer);
+
+					std::ofstream ofs("Template\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
+					ofs.write((char*)buffer.data(), buffer.size());
+					ofs.flush();
+				}).detach();
+
+			}, callback);
 		}
 	}
 
