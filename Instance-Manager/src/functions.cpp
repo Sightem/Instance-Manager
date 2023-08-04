@@ -272,6 +272,14 @@ static int _WindowsNameFilter(ImGuiInputTextCallbackData* data)
 {
     if (strchr(DISALLOWED_CHARS, (char)data->EventChar))
         return 1;
+
+    // Check for underscore and replace with hyphen
+    if (data->EventChar == '_')
+    {
+        data->EventChar = '-';
+        return 0; // Allow the new character to pass through
+    }
+
     return 0;
 }
 
