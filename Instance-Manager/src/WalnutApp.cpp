@@ -19,8 +19,9 @@
 #include "AppLog.hpp"
 #include "Management.hpp"
 #include "ThreadManager.hpp"
+#include "config.hpp"
 
-std::vector<UserInstance> instances = Roblox::process_roblox_packages();
+std::vector<RobloxInstance> instances = Roblox::wrap_packages();
 std::vector<bool> selection;
 
 class InstanceManager : public Walnut::Layer
@@ -30,6 +31,7 @@ public:
 	{
 		ImGui::Begin("Instance Manager", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNav);
 
+		static auto& config = Config::getInstance().get();
 		static bool dont_ask_me_next_time = false;
 		static int item_current_idx = 0;
 		static int lastSelectedIndex = -1;
@@ -47,7 +49,7 @@ public:
 			{
 				for (int n = 0; n < instances.size(); ++n)
 				{
-					const std::string& path_name = instances[n].Username;
+					const std::string& path_name = instances[n].Package.Username;
 					if (filter.PassFilter(path_name.c_str()))
 					{
 						selection[n] = true;
@@ -61,7 +63,7 @@ public:
 
 			for (int n = 0; n < instances.size(); ++n)
 			{
-				const std::string& path_name = instances[n].Username;
+				const std::string& path_name = instances[n].Package.Username;
 
 				if (filter.PassFilter(path_name.c_str()))
 				{
@@ -72,7 +74,7 @@ public:
 						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(40, 170, 40, 255));
 					}
 
-					if (ImGui::Selectable(instances[n].Username.c_str(), is_selected))
+					if (ImGui::Selectable(instances[n].Package.Username.c_str(), is_selected))
 					{
 						if (ImGui::GetIO().KeyShift && lastSelectedIndex != -1)
 						{
@@ -115,7 +117,7 @@ public:
 								{
 									selectedNames += ", ";
 								}
-								selectedNames += instances[i].Username;
+								selectedNames += instances[i].Package.Username;
 								isFirst = false;
 							}
 						}
@@ -126,8 +128,8 @@ public:
 						
 						if (ImGui::TreeNode("Launch control"))
 						{
-							static std::string placeid = "";
-							static std::string linkcode = "";
+							static std::string placeid = config["lastPlaceID"];
+							static std::string linkcode = config["lastVip"];
 
 							ImGui::PushItemWidth(130.0f);
 
@@ -235,6 +237,8 @@ public:
 		applog.draw("Log");
 
 		ImGui::End();
+
+		ImGui::ShowDemoWindow();
 	}
 
 private:
@@ -252,18 +256,18 @@ private:
 		{
 			ForEachSelectedInstance([this, placeid, linkcode](int idx) {
 				auto callback = [idx, this]() {
-					applog.add_log("Launched {}", instances[idx].Username);
+					applog.add_log("Launched {}", instances[idx].Package.Username);
 				};
 
-				applog.add_log("Launching {}...", instances[idx].Username);
+				applog.add_log("Launching {}...", instances[idx].Package.Username);
 
 				queued_thread_manager.submit_task("launchInstance" + std::to_string(idx), [idx, placeid, linkcode, this]() {
-					std::string appid = instances[idx].AppID;
+					std::string appid = instances[idx].Package.AppID;
 
 					if (linkcode.empty())
-						Roblox::launch_roblox(instances[idx].AppID, placeid);
+						Roblox::launch_roblox(instances[idx].Package.AppID, placeid);
 					else
-						Roblox::launch_roblox(instances[idx].AppID, placeid, linkcode);
+						Roblox::launch_roblox(instances[idx].Package.AppID, placeid, linkcode);
 
 					//try 5 times to find the roblox process
 					for (int i = 0; i < 5; i++)
@@ -272,7 +276,7 @@ private:
 						for (auto pid : pids)
 						{
 							std::string command_line = Native::get_commandline_arguments(pid);
-							if (command_line.find(instances[idx].Username) != std::string::npos)
+							if (command_line.find(instances[idx].Package.Username) != std::string::npos)
 							{
 								instances[idx].ProcessID = pid;
 								return;
@@ -284,6 +288,13 @@ private:
 			});
 			
 		}
+
+		std::thread([placeid, linkcode]() {
+			auto& config = Config::getInstance().get();
+			config["lastPlaceID"] = placeid;
+			config["lastVip"] = linkcode;
+			Config::getInstance().save("config.json");
+		}).detach();
 	}
 
 
@@ -303,7 +314,7 @@ private:
 
 		if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
 			ForEachSelectedInstance([this](int idx) {
-				std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::get_current_username(), instances[idx].PackageFamilyName);
+				std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::get_current_username(), instances[idx].Package.PackageFamilyName);
 
 				if (std::filesystem::exists(path))
 					Roblox::modify_settings(path, graphicsquality, newmastervolume, newsavedquality);
@@ -343,12 +354,12 @@ private:
 			thread_manager.submit_task("deleteInstance", [idx, this]() {
 				try
 				{
-					Roblox::nuke_instance(instances[idx].Name, instances[idx].InstallLocation);
+					Roblox::nuke_instance(instances[idx].Package.Name, instances[idx].Package.InstallLocation);
 					instances.erase(instances.begin() + idx);
 				}
 				catch (const std::exception& e)
 				{
-					applog.add_log("Failed to delete instance {}: {}", instances[idx].Name, e.what());
+					applog.add_log("Failed to delete instance {}: {}", instances[idx].Package.Name, e.what());
 				}
 
 			}, [&]() {
@@ -383,15 +394,40 @@ private:
 		}
 	}
 
+	std::vector<RobloxInstance> get_new_instances(const std::vector<RobloxInstance>& old_instances) {
+		std::vector<RobloxInstance> new_instances = Roblox::wrap_packages();
+		std::vector<RobloxInstance> result;
+
+		// Check if an instance in new_instances is not present in old_instances
+		for (const auto& new_instance : new_instances) {
+			bool found = false;
+			for (const auto& old_instance : old_instances) {
+				if (new_instance.Package.AppID == old_instance.Package.AppID) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				result.push_back(new_instance);
+			}
+		}
+
+		return result;
+	}
+
+
 	void RenderCreateInstance(std::string instance_name_buf)
 	{
 		if (ui::ConditionalButton("Create instance", !(instance_name_buf.empty() || StringUtils::contains_only(instance_name_buf, '\0')), ui::ButtonStyle::Green))
 		{
 			applog.add_log("Creating instance...");
 
+			std::vector<RobloxInstance> existing_instances = instances;
+
 			auto completionCallback = [&]() {
 				applog.add_log("Instance created");
-				instances = Roblox::process_roblox_packages();
+				std::vector<RobloxInstance> new_instances = get_new_instances(instances);
+				instances.insert(instances.end(), new_instances.begin(), new_instances.end());
 				selection.resize(instances.size(), false);
 			};
 
@@ -486,7 +522,7 @@ private:
 		{
 			ForEachSelectedInstance([this](int idx) {
 				auto callback = [idx, this]() {
-					std::string abs_path = std::filesystem::absolute(instances[idx].InstallLocation + "\\AppxManifest.xml").string();
+					std::string abs_path = std::filesystem::absolute(instances[idx].Package.InstallLocation + "\\AppxManifest.xml").string();
 					std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
 					Native::run_powershell_command(cmd);
 
@@ -495,7 +531,7 @@ private:
 
 
 				queued_thread_manager.submit_task(fmt::format("updateinstances{}", idx), [idx, this]() {
-					applog.add_log("Updating {}...", instances[idx].Name);
+					applog.add_log("Updating {}...", instances[idx].Package.Name);
 					std::thread([idx, this]() {
 						std::vector<char8_t> buffer;
 						Request win10req("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip");
@@ -504,13 +540,13 @@ private:
 
 						Utils::save_to_file("Windows10Universal.zip", buffer);
 
-						std::string pathTow10uni = instances[idx].InstallLocation + "\\Windows10Universal.exe";
+						std::string pathTow10uni = instances[idx].Package.InstallLocation + "\\Windows10Universal.exe";
 
 						if (std::filesystem::exists(pathTow10uni)) {
 							std::filesystem::remove(pathTow10uni);
 						}
 
-						FS::decompress_zip("Windows10Universal.zip", instances[idx].InstallLocation);
+						FS::decompress_zip("Windows10Universal.zip", instances[idx].Package.InstallLocation);
 						}).detach();
 
 					std::thread([idx, this]() {
@@ -521,7 +557,7 @@ private:
 
 						Utils::save_to_file("CrashHandler.exe", buffer);
 
-						std::string pathToCrashHandler = instances[idx].InstallLocation + "\\Assets\\CrashHandler.exe";
+						std::string pathToCrashHandler = instances[idx].Package.InstallLocation + "\\Assets\\CrashHandler.exe";
 
 						if (std::filesystem::exists(pathToCrashHandler)) {
 							std::filesystem::remove(pathToCrashHandler);
@@ -537,9 +573,9 @@ private:
 						appxml.initalize();
 						appxml.download_file<char8_t>(buffer);
 
-						std::string buf = FS::replace_pattern_in_content(buffer, "{INSTANCENAME}", instances[idx].Username);
+						std::string buf = FS::replace_pattern_in_content(buffer, "{INSTANCENAME}", instances[idx].Package.Username);
 
-						std::ofstream ofs(instances[idx].InstallLocation + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
+						std::ofstream ofs(instances[idx].Package.InstallLocation + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
 						ofs << buf;
 						ofs.flush();
 						ofs.close();
@@ -595,6 +631,24 @@ Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
 		//system("pause");
 		//g_ApplicationRunning = false;
 	}
+
+	//if config.json doesn't exist, create it
+	if (!std::filesystem::exists("config.json"))
+	{
+		std::ofstream ofs("config.json", std::ofstream::out | std::ofstream::trunc);
+		nlohmann::json j;
+		j["lastPlaceID"] = "";
+		j["lastVip"] = "";
+		
+		//save to file
+		ofs << j.dump(4);
+
+		ofs.flush();
+		ofs.close();
+	}
+
+	//load config.json
+	Config::getInstance().load("config.json");
 
 
 	Walnut::ApplicationSpecification spec;

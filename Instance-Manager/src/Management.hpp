@@ -10,7 +10,7 @@ namespace fs = std::filesystem;
 class Management : public Walnut::Layer
 {
 	public:
-	Management(std::vector<UserInstance>& instances, std::vector<bool>& selection)
+	Management(std::vector<RobloxInstance>& instances, std::vector<bool>& selection)
 		: instances(instances), selection(selection)
 	{}
 
@@ -30,10 +30,10 @@ class Management : public Walnut::Layer
 			if (selection[i])
 			{
 				//use a TreeNode
-				if (ImGui::TreeNode(instances[i].Name.c_str()))
+				if (ImGui::TreeNode(instances[i].Package.Name.c_str()))
 				{
-                    std::string path = FS::find_files(fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages", Native::get_current_username()), instances[i].Name + "_")[0];
-					DisplayFilesAndDirectories(instances[i].PackageFamilyName, path, true);
+                    std::string path = FS::find_files(fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages", Native::get_current_username()), instances[i].Package.Name + "_")[0];
+					DisplayFilesAndDirectories(instances[i].Package.PackageFamilyName, path, true);
 					ImGui::TreePop();
 
 				}
@@ -44,7 +44,7 @@ class Management : public Walnut::Layer
 	}
 
 private:
-	std::vector<UserInstance>& instances;
+	std::vector<RobloxInstance>& instances;
 	std::vector<bool>& selection;
 
     struct DirectoryEntryInfo {
@@ -134,7 +134,7 @@ private:
         {
             if (selection[i])
             {
-                std::filesystem::path dst_path = base_src + "\\" + instances[i].PackageFamilyName + "\\" + relative_path.string();
+                std::filesystem::path dst_path = base_src + "\\" + instances[i].Package.PackageFamilyName + "\\" + relative_path.string();
 
                 if (full_src_path == dst_path)
                 {

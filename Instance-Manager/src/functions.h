@@ -22,7 +22,7 @@
 #include "ntdll.h"
 
 
-struct UserInstance {
+struct RobloxPackage {
     std::string Name;
     std::string Username;
     std::string PackageID;
@@ -30,7 +30,11 @@ struct UserInstance {
     std::string InstallLocation;
     std::string PackageFamilyName;
     std::string Version;
-    DWORD ProcessID = 0;
+};
+
+struct RobloxInstance {
+    RobloxPackage Package;
+    DWORD ProcessID = {};
 };
 
 namespace FS
@@ -116,7 +120,8 @@ namespace StringUtils
 namespace Roblox
 {
     void nuke_instance(const std::string name, const std::string path);
-    std::vector<UserInstance> process_roblox_packages();
+    std::vector<RobloxPackage> process_roblox_packages();
+    std::vector<RobloxInstance> wrap_packages();
     void launch_roblox(std::string AppID, const std::string& placeid);
     void launch_roblox(std::string AppID, const std::string& placeid, const std::string& linkcode);
 

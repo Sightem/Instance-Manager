@@ -841,10 +841,10 @@ namespace Roblox
         FS::remove_path(path);
     }
 
-    std::vector<UserInstance> process_roblox_packages()
+    std::vector<RobloxPackage> process_roblox_packages()
     {
         auto ProgIdNames = Native::get_progid_names();
-        std::vector<UserInstance> userInstancesVec;
+        std::vector<RobloxPackage> userInstancesVec;
 
         // Run the PowerShell command
         std::string output = Native::run_powershell_command("Get-AppxPackage ROBLOXCORPORATION.ROBLOX.* | Format-List -Property Name, PackageFullName, InstallLocation, PackageFamilyName, Version");
@@ -873,13 +873,13 @@ namespace Roblox
 
                 // Using a lambda to check if a user with the same username already exists in the vector
                 auto userExists = [&userInstancesVec, &username]() {
-                    return std::any_of(userInstancesVec.begin(), userInstancesVec.end(), [&username](const UserInstance& instance) {
+                    return std::any_of(userInstancesVec.begin(), userInstancesVec.end(), [&username](const RobloxPackage& instance) {
                         return instance.Username == username;
                         });
                 };
 
                 if (ProgIdNames.find(packageFullName) != ProgIdNames.end() && !userExists()) {
-                    UserInstance instance;
+                    RobloxPackage instance;
                     instance.Name = name;
                     instance.Username = username;
                     instance.PackageID = packageFullName;
@@ -895,6 +895,28 @@ namespace Roblox
         }
 
         return userInstancesVec;
+    }
+
+    std::vector<RobloxInstance> wrap_packages()
+    {
+        std::vector<RobloxPackage> packages = process_roblox_packages();
+
+        std::vector<RobloxInstance> instances;
+
+        for (auto& package : packages) {
+			RobloxInstance instance;
+			instance.Package.Name = package.Name;
+			instance.Package.Username = package.Username;
+			instance.Package.PackageID = package.PackageID;
+			instance.Package.AppID = package.AppID;
+			instance.Package.InstallLocation = package.InstallLocation;
+			instance.Package.PackageFamilyName = package.PackageFamilyName;
+			instance.Package.Version = package.Version;
+            instance.ProcessID = 0;
+			instances.push_back(instance);
+		}
+
+        return instances;
     }
 
     void launch_roblox(std::string AppID, const std::string& placeid)
@@ -930,11 +952,11 @@ namespace Roblox
         //call SHChangeNotify
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 
-        //system(fmt::format("start roblox://placeId={}/", placeid).c_str());
-        //roblox://placeId=2414851778&linkCode=99685865445527485243539729691730/
         std::string cmd = fmt::format("start roblox://placeId={}^&linkCode={}/", placeid, linkcode);
         system(cmd.c_str());
     }
+
+
 
 
     std::set<DWORD> get_roblox_instances()
