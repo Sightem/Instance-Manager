@@ -73,6 +73,8 @@ namespace ui
 
     bool RedButton(const char* label);
 
+    void HelpMarker(const char* desc);
+
 }
 
 namespace Native
@@ -100,6 +102,8 @@ namespace Native
     bool open_in_explorer(const std::string& path, bool isFile = false) noexcept;
 
     void minimize_window(DWORD pid);
+
+    bool set_process_affinity(DWORD processID, DWORD requestedCores);
 }
 
 namespace StringUtils

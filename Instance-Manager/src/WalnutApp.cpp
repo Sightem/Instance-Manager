@@ -158,6 +158,27 @@ public:
 							ImGui::TreePop();
 						};
 
+						if (ImGui::TreeNode("Process Control"))
+						{
+							int cpucores = 1;
+							ImGui::InputInt("CPU Cores", &cpucores);
+
+							ImGui::SameLine();
+
+							ui::HelpMarker("This will set the affinity of the process to the selected amount of cores.");
+
+							if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f)))
+							{
+								ForEachSelectedInstance([cpucores](int idx)
+									{
+										Native::set_process_affinity(instances[idx].ProcessID, cpucores);
+									}
+								);
+							}
+
+							ImGui::TreePop();
+						}
+
 						ImGui::Separator();
 
 

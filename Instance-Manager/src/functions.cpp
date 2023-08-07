@@ -370,7 +370,18 @@ namespace ui
 		return pressed;
     }
 
-
+    void HelpMarker(const char* desc)
+    {
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+            ImGui::TextUnformatted(desc);
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
+    }
 }
 
 
@@ -732,6 +743,38 @@ namespace Native
 
     void minimize_window(DWORD pid) {
         EnumWindows(_enum_window_proc, (LPARAM)pid);
+    }
+
+    bool set_process_affinity(DWORD processID, DWORD requestedCores)
+    {
+        SYSTEM_INFO sysInfo;
+        GetSystemInfo(&sysInfo);
+        DWORD numberOfCores = sysInfo.dwNumberOfProcessors;
+
+        if (requestedCores <= 0 || requestedCores > numberOfCores) {
+            std::cerr << "Invalid number of cores requested." << std::endl;
+            return false;
+        }
+
+        DWORD_PTR mask = 0;
+        for (DWORD i = 0; i < requestedCores; i++) {
+            mask |= (1 << i);
+        }
+
+        HANDLE hProcess = OpenProcess(PROCESS_SET_INFORMATION, FALSE, processID);
+        if (hProcess == NULL) {
+            std::cerr << "Failed to open process. Error code: " << GetLastError() << std::endl;
+            return false;
+        }
+
+        if (SetProcessAffinityMask(hProcess, mask) == 0) {
+            std::cerr << "Failed to set process affinity. Error code: " << GetLastError() << std::endl;
+            CloseHandle(hProcess);
+            return false;
+        }
+
+        CloseHandle(hProcess);
+        return true;
     }
 
 }
