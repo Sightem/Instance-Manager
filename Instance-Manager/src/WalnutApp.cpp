@@ -139,11 +139,16 @@ public:
 
 							ui::InputTextWithHint("##linkcode", "VIP link code", &linkcode);
 
+							ImGui::SameLine();
+
+							static double launchdelay = 0;
+							ImGui::InputDouble("##delay", &launchdelay);
+
 							ImGui::PopItemWidth();
 
 							ImGui::SameLine();
 
-							RenderLaunch(placeid, linkcode);
+							RenderLaunch(placeid, linkcode, launchdelay);
 							
 							ImGui::SameLine();
 							
@@ -267,7 +272,7 @@ private:
 	ThreadManager thread_manager;
 	QueuedThreadManager queued_thread_manager;
 
-	void RenderLaunch(std::string placeid, std::string linkcode)
+	void RenderLaunch(std::string placeid, std::string linkcode, double launchdelay)
 	{
 		if (!AnyInstanceSelected())
 			return;
@@ -275,12 +280,17 @@ private:
 
 		if (ui::GreenButton("Launch"))
 		{
-			ForEachSelectedInstance([this, placeid, linkcode](int idx) {
+			ForEachSelectedInstance([this, placeid, linkcode, launchdelay](int idx) {
 				auto callback = [idx, this]() {
 					applog.add_log("Launched {}", instances[idx].Package.Username);
 				};
 
 				applog.add_log("Launching {}...", instances[idx].Package.Username);
+
+				queued_thread_manager.submit_task("delay" + std::to_string(idx), [launchdelay]() {
+					std::this_thread::sleep_for(std::chrono::milliseconds((int)(launchdelay * 1000)));
+					}
+				);
 
 				queued_thread_manager.submit_task("launchInstance" + std::to_string(idx), [idx, placeid, linkcode, this]() {
 					std::string appid = instances[idx].Package.AppID;
