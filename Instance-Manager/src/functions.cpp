@@ -896,7 +896,7 @@ namespace Roblox
         std::stringstream ss(output);
         std::string line;
 
-        std::regex pattern(R"(Name\s*:\s*(.+)\s*PackageFullName\s*:\s*(.+)\s*InstallLocation\s*:\s*(.+)\s*PackageFamilyName\s*:\s*(.+)\s*Version\s*:\s*(.+))");
+        std::regex pattern(R"(Name\s*:\s*(.+)\s*PackageFullName\s*:\s*(.+)\s*InstallLocation\s*:\s*([^\n]+(?:\n\s{20}[^\n]+)*)\s*PackageFamilyName\s*:\s*(.+)\s*Version\s*:\s*(.+))");
         std::smatch match;
 
         std::string::const_iterator searchStart(output.cbegin());
@@ -904,7 +904,8 @@ namespace Roblox
         while (std::regex_search(searchStart, output.cend(), match, pattern)) {
             std::string name = match[1].str();
             std::string packageFullName = match[2].str();
-            std::string installLocation = match[3].str();
+            std::string installLocationRaw = match[3].str();
+            std::string installLocation = std::regex_replace(installLocationRaw, std::regex("\n\\s{20}"), "");
             std::string packageFamilyName = match[4].str();
             std::string version = match[5].str();
 
