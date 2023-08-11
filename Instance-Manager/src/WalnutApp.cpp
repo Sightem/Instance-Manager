@@ -165,7 +165,7 @@ public:
 
 						if (ImGui::TreeNode("Process Control"))
 						{
-							int cpucores = 1;
+							static int cpucores = 1;
 							ImGui::InputInt("CPU Cores", &cpucores);
 
 							ImGui::SameLine();
@@ -174,7 +174,7 @@ public:
 
 							if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f)))
 							{
-								ForEachSelectedInstance([cpucores](int idx)
+								ForEachSelectedInstance([&](int idx)
 									{
 										Native::set_process_affinity(instances[idx].ProcessID, cpucores);
 									}
