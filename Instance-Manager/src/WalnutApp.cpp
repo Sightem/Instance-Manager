@@ -156,68 +156,11 @@ public:
 							ImGui::TreePop();
 						};
 
-						if (ImGui::TreeNode("Settings control"))
-						{
-							RenderSettings();
+						RenderSettings();
 
-							ImGui::TreePop();
-						};
+						RenderProcessControl();
 
-						if (ImGui::TreeNode("Process Control"))
-						{
-							static int cpucores = 1;
-							ImGui::InputInt("CPU Cores", &cpucores);
-
-							ImGui::SameLine();
-
-							ui::HelpMarker("This will set the affinity of the process to the selected amount of cores.");
-
-							if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f)))
-							{
-								ForEachSelectedInstance([&](int idx)
-									{
-										Native::set_process_affinity(instances[idx].ProcessID, cpucores);
-									}
-								);
-							}
-
-							ImGui::TreePop();
-						};
-
-						//if selections are more than 1, disable the fast login button
-						if (std::count(selection.begin(), selection.end(), true) > 1)
-							ImGui::BeginDisabled();
-
-						if (ImGui::TreeNode("Fast Login"))
-						{
-							//static std::string cookie = "";
-							//static std::string quicklogincode = "";
-							static char cookie[3000] = "";
-							static char quicklogincode[10] = "";
-
-							//ui::InputTextWithHint("##cookie", "Cookie", &cookie, 0, "");
-							ImGui::InputTextWithHint("##cookie", "Cookie", cookie, IM_ARRAYSIZE(cookie));
-
-							ImGui::SameLine();
-
-							//ui::InputTextWithHint("##quicklogincode", "Quick login code", &quicklogincode, 0, "");
-							ImGui::InputTextWithHint("##quicklogincode", "Quick login code", quicklogincode, IM_ARRAYSIZE(quicklogincode));
-
-							if (ImGui::Button("Login", ImVec2(646.0f, 0.0f)))
-							{
-								
-								std::string retco = Roblox::enter_code(quicklogincode, cookie);
-								std::string retvalid = Roblox::validate_code(quicklogincode, cookie);
-							}
-
-							ImGui::TreePop();
-
-						}
-
-						if (std::count(selection.begin(), selection.end(), true) > 1)
-							ImGui::EndDisabled();
-
-
+						RenderFastLogin(n);
 
 						ImGui::Separator();
 
@@ -298,14 +241,122 @@ public:
 		applog.draw("Log");
 
 		ImGui::End();
-
-		ImGui::ShowDemoWindow();
 	}
 
 private:
 	std::vector<std::future<void>> instance_update_button_futures;
 	ThreadManager thread_manager;
 	QueuedThreadManager queued_thread_manager;
+	
+	void RenderProcessControl()
+	{
+		if (ImGui::TreeNode("Process Control"))
+		{
+			static int cpucores = 1;
+			ImGui::InputInt("CPU Cores", &cpucores);
+
+			ImGui::SameLine();
+
+			ui::HelpMarker("This will set the affinity of the process to the selected amount of cores.");
+
+			if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f)))
+			{
+				ForEachSelectedInstance([&](int idx)
+					{
+						Native::set_process_affinity(instances[idx].ProcessID, cpucores);
+					}
+				);
+			}
+
+			ImGui::TreePop();
+		};
+	}
+
+	void RenderFastLogin(int item_current_idx)
+	{
+		//if selections are more than 1, or if the selected instance is not running, disable the button
+		if (std::count(selection.begin(), selection.end(), true) > 1 || instances[item_current_idx].ProcessID == 0)
+			ImGui::BeginDisabled();
+
+		static bool showCodeValuePopup = false;
+
+		if (ImGui::TreeNode("Fast Login"))
+		{
+			ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "*Make sure you have already clicked on \"Log In With Another Device\"");
+
+			static char cookie[3000] = "";
+			static char quicklogincode[10] = "";
+
+			ImGui::InputTextWithHint("##cookie", "Cookie", cookie, IM_ARRAYSIZE(cookie));
+
+			ImGui::InputTextWithHint("##quicklogincode", "Quick login code", quicklogincode, IM_ARRAYSIZE(quicklogincode));
+
+
+			ImGui::SameLine();
+			if (ImGui::Button("Get Code"))
+			{
+				DWORD pid = 0;
+
+				for (int i = 0; i < selection.size(); ++i)
+				{
+					if (selection[i])
+					{
+						pid = instances[i].ProcessID;
+						break;
+					}
+				}
+
+				if (pid != 0)
+				{
+					HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+					std::string codeValue = Native::search_entire_process_memory(pHandle);
+					if (codeValue != "")
+					{
+						strcpy(quicklogincode, codeValue.c_str());
+					}
+					else
+					{
+						showCodeValuePopup = true;
+					}
+
+				}
+			}
+
+			if (showCodeValuePopup)
+			{
+				ImGui::OpenPopup("Code Value Error");
+			}
+
+			if (ImGui::BeginPopupModal("Code Value Error", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+			{
+				ImGui::Text("Code value not found!");
+				if (ImGui::Button("OK", ImVec2(120, 0)))
+				{
+					ImGui::CloseCurrentPopup();
+					showCodeValuePopup = false;
+				}
+				ImGui::EndPopup();
+			}
+
+			if (strlen(cookie) == 0 || strlen(quicklogincode) == 0)
+				ImGui::BeginDisabled();
+
+			if (ImGui::Button("Login", ImVec2(323.0f, 0.0f)))
+			{
+				Roblox::enter_code(quicklogincode, cookie);
+				Roblox::validate_code(quicklogincode, cookie);
+			}
+
+			if (strlen(cookie) == 0 || strlen(quicklogincode) == 0)
+				ImGui::EndDisabled();
+
+
+			ImGui::TreePop();
+		}
+
+		if (std::count(selection.begin(), selection.end(), true) > 1 || instances[item_current_idx].ProcessID == 0)
+			ImGui::EndDisabled();
+	}
 
 	void RenderLaunch(std::string placeid, std::string linkcode, double launchdelay)
 	{
@@ -355,36 +406,43 @@ private:
 			
 		}
 
-		std::thread([placeid, linkcode]() {
-			auto& config = Config::getInstance().get();
-			config["lastPlaceID"] = placeid;
-			config["lastVip"] = linkcode;
-			Config::getInstance().save("config.json");
-		}).detach();
+		if (placeid != Config::getInstance().get()["lastPlaceID"] || linkcode != Config::getInstance().get()["lastVip"])
+		{
+			std::thread([placeid, linkcode]() {
+				auto& config = Config::getInstance().get();
+				config["lastPlaceID"] = placeid;
+				config["lastVip"] = linkcode;
+				Config::getInstance().save("config.json");
+				}).detach();
+		}
 	}
 
 
 	void RenderSettings()
 	{
-		if (!AnyInstanceSelected())
-			return;
+		if (ImGui::TreeNode("Settings control"))
+		{
+			if (!AnyInstanceSelected())
+				return;
 
-		static int graphicsquality = 1;
-		ImGui::InputInt("Graphics Quality", &graphicsquality);
+			static int graphicsquality = 1;
+			ImGui::InputInt("Graphics Quality", &graphicsquality);
 
-		static float newmastervolume = 0.8f;
-		ImGui::InputFloat("Master volume", &newmastervolume, 0.01f, 1.0f, "%.3f");
+			static float newmastervolume = 0.8f;
+			ImGui::InputFloat("Master volume", &newmastervolume, 0.01f, 1.0f, "%.3f");
 
-		static int newsavedquality = 1;
-		ImGui::InputInt("Saved Graphics Quality", &newsavedquality);
+			static int newsavedquality = 1;
+			ImGui::InputInt("Saved Graphics Quality", &newsavedquality);
 
-		if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
-			ForEachSelectedInstance([this](int idx) {
-				std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::get_current_username(), instances[idx].Package.PackageFamilyName);
+			if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
+				ForEachSelectedInstance([this](int idx) {
+					std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::get_current_username(), instances[idx].Package.PackageFamilyName);
 
-				if (std::filesystem::exists(path))
-					Roblox::modify_settings(path, graphicsquality, newmastervolume, newsavedquality);
-			});
+					if (std::filesystem::exists(path))
+						Roblox::modify_settings(path, graphicsquality, newmastervolume, newsavedquality);
+				});
+			}
+			ImGui::TreePop();
 		}
 	}
 

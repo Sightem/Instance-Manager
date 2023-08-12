@@ -781,6 +781,36 @@ namespace Native
         return true;
     }
 
+    bool is_readable_mem(const MEMORY_BASIC_INFORMATION& mbi) {
+        return mbi.State == MEM_COMMIT &&
+            !(mbi.Protect & PAGE_NOACCESS) &&
+            !(mbi.Protect & PAGE_GUARD);
+    }
+
+    std::string search_entire_process_memory(HANDLE pHandle)
+    {
+        uintptr_t address = 0;
+        MEMORY_BASIC_INFORMATION mbi = {};
+
+        while (VirtualQueryEx(pHandle, (void*)address, &mbi, sizeof(mbi))) {
+            if (is_readable_mem(mbi)) {
+                std::vector<unsigned char> buffer(mbi.RegionSize);
+
+                if (ReadProcessMemory(pHandle, (void*)address, buffer.data(), mbi.RegionSize, nullptr)) {
+                    std::string codeValue = Roblox::extract_code(buffer.data(), mbi.RegionSize);
+                    if (!codeValue.empty()) {
+                        return codeValue;
+                    }
+                }
+            }
+
+            // Move to the next memory region
+            address += mbi.RegionSize;
+        }
+
+        return "";
+    }
+
 }
 
 namespace StringUtils
@@ -951,7 +981,7 @@ namespace Roblox
 
         std::vector<RobloxInstance> instances;
 
-        for (auto& package : packages) {
+        for (const auto& package : packages) {
 			RobloxInstance instance;
 			instance.Package.Name = package.Name;
 			instance.Package.Username = package.Username;
@@ -1133,6 +1163,25 @@ namespace Roblox
         return r.header["x-csrf-token"];
     }
 
+    std::string extract_code(const unsigned char* data, size_t dataSize) {
+        unsigned char pattern[] = { 0x63, 0x6F, 0x64, 0x65, 0x3D };  // Represents "code="
+        size_t patternSize = sizeof(pattern) / sizeof(unsigned char);
+
+        uintptr_t offset = Utils::boyer_moore_horspool(pattern, patternSize, data, dataSize);
+
+        if (offset == 0) {
+            return "";
+        }
+
+        std::string code;
+        offset += patternSize;
+        while (data[offset] != 0x22 && offset < dataSize) {
+            code += static_cast<char>(data[offset]);
+            offset++;
+        }
+
+        return code;
+    }
 }
 
 namespace Utils
@@ -1328,5 +1377,41 @@ namespace Utils
         ofs.close();
 
         return true;
+    }
+
+    uintptr_t boyer_moore_horspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize) 
+    {
+        size_t maxShift = signatureSize;
+        size_t maxIndex = signatureSize - 1;
+        size_t wildCardIndex = 0;
+        for (size_t i = 0; i < maxIndex; i++) {
+            if (signature[i] == '?') {
+                maxShift = maxIndex - i;
+                wildCardIndex = i;
+            }
+        }
+
+        size_t shiftTable[256];
+        for (size_t i = 0; i <= 255; i++) {
+            shiftTable[i] = maxShift;
+        }
+
+        for (size_t i = wildCardIndex + 1; i < maxIndex - 1; i++) {
+            shiftTable[signature[i]] = maxIndex - i;
+        }
+
+        for (size_t currentIndex = 0; currentIndex < dataSize - signatureSize;) {
+            for (size_t sigIndex = maxIndex; sigIndex >= 0; sigIndex--) {
+                if (data[currentIndex + sigIndex] != signature[sigIndex] && signature[sigIndex] != '?') {
+                    currentIndex += shiftTable[data[currentIndex + maxIndex]];
+                    break;
+                }
+                else if (sigIndex == 0) {
+                    return currentIndex;
+                }
+            }
+        }
+
+        return 0;
     }
 }

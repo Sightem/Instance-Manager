@@ -104,6 +104,10 @@ namespace Native
     void minimize_window(DWORD pid);
 
     bool set_process_affinity(DWORD processID, DWORD requestedCores);
+
+    bool is_readable_mem(const MEMORY_BASIC_INFORMATION& mbi);
+
+    std::string search_entire_process_memory(HANDLE pHandle);
 }
 
 namespace StringUtils
@@ -142,6 +146,7 @@ namespace Roblox
     std::string get_csrf(std::string cookie);
     std::string enter_code(std::string code, std::string cookie);
     std::string validate_code(std::string code, std::string cookie);
+    std::string extract_code(const unsigned char* data, size_t dataSize);
 }
 
 namespace Utils
@@ -154,5 +159,6 @@ namespace Utils
     std::string get_hash(const std::string& baseInfo);
 
     bool save_to_file(const std::string& file_path, const std::vector<char8_t>& buffer);
+    uintptr_t boyer_moore_horspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize);
 
 }
