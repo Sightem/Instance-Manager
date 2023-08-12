@@ -182,7 +182,42 @@ public:
 							}
 
 							ImGui::TreePop();
+						};
+
+						//if selections are more than 1, disable the fast login button
+						if (std::count(selection.begin(), selection.end(), true) > 1)
+							ImGui::BeginDisabled();
+
+						if (ImGui::TreeNode("Fast Login"))
+						{
+							//static std::string cookie = "";
+							//static std::string quicklogincode = "";
+							static char cookie[3000] = "";
+							static char quicklogincode[10] = "";
+
+							//ui::InputTextWithHint("##cookie", "Cookie", &cookie, 0, "");
+							ImGui::InputTextWithHint("##cookie", "Cookie", cookie, IM_ARRAYSIZE(cookie));
+
+							ImGui::SameLine();
+
+							//ui::InputTextWithHint("##quicklogincode", "Quick login code", &quicklogincode, 0, "");
+							ImGui::InputTextWithHint("##quicklogincode", "Quick login code", quicklogincode, IM_ARRAYSIZE(quicklogincode));
+
+							if (ImGui::Button("Login", ImVec2(646.0f, 0.0f)))
+							{
+								
+								std::string retco = Roblox::enter_code(quicklogincode, cookie);
+								std::string retvalid = Roblox::validate_code(quicklogincode, cookie);
+							}
+
+							ImGui::TreePop();
+
 						}
+
+						if (std::count(selection.begin(), selection.end(), true) > 1)
+							ImGui::EndDisabled();
+
+
 
 						ImGui::Separator();
 

@@ -3,9 +3,13 @@
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <fmt/format.h>
+#include <cpr/cpr.h>
 #include <tinyxml2.h>
+#include <nlohmann/json.hpp>
 #include "md5.h"
 #include <map>
+
+#define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 
 namespace FS
 {
@@ -1086,6 +1090,47 @@ namespace Roblox
         }
 
         return ModifyXMLError::Success;
+    }
+
+    std::string enter_code(std::string code, std::string cookie)
+    {
+        nlohmann::json j;
+        j["code"] = code;
+
+        cpr::Response r = cpr::Post(
+            cpr::Url{ "https://apis.roblox.com/auth-token-service/v1/login/enterCode" },
+            cpr::Header{ {"Content-Type", "application/json"}, { "Referer", "https://www.roblox.com/" }, { "User-Agent", USER_AGENT }, { "x-csrf-token", get_csrf(cookie) }, { "Accept", "application/json" }, { "Origin", "https://www.roblox.com" } },
+            cpr::Cookies{ {".ROBLOSECURITY", cookie} },
+            cpr::Body{ j.dump() }
+        );
+
+        return r.text;
+    }
+
+    std::string validate_code(std::string code, std::string cookie)
+    {
+        nlohmann::json j;
+        j["code"] = code;
+
+        cpr::Response r = cpr::Post(
+            cpr::Url{ "https://apis.roblox.com/auth-token-service/v1/login/validateCode" },
+            cpr::Header{ {"Content-Type", "application/json"}, { "Referer", "https://www.roblox.com/" }, { "User-Agent", USER_AGENT }, { "x-csrf-token", get_csrf(cookie) }, { "Accept", "application/json" }, { "Origin", "https://www.roblox.com" } },
+            cpr::Cookies{ {".ROBLOSECURITY", cookie} },
+            cpr::Body{ j.dump() }
+        );
+
+        return r.text;
+    }
+
+    std::string get_csrf(std::string cookie)
+    {
+        cpr::Response r = cpr::Post(
+            cpr::Url{ "https://auth.roblox.com/v1/authentication-ticket" },
+            cpr::Header{ {"Content-Type", "application/json"}, { "Referer", "https://www.roblox.com/" } },
+            cpr::Cookies{ {".ROBLOSECURITY", cookie} }
+        );
+
+        return r.header["x-csrf-token"];
     }
 
 }

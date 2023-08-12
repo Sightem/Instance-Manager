@@ -139,6 +139,9 @@ namespace Roblox
     };
 
     ModifyXMLError modify_settings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue);
+    std::string get_csrf(std::string cookie);
+    std::string enter_code(std::string code, std::string cookie);
+    std::string validate_code(std::string code, std::string cookie);
 }
 
 namespace Utils
