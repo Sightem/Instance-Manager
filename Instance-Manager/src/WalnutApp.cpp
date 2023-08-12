@@ -584,6 +584,10 @@ private:
 		{
 			applog.add_log("Updating template...");
 
+			if (!std::filesystem::exists("Template")) {
+				std::filesystem::create_directories("Template\\Assets");
+			}
+
 			queued_thread_manager.submit_task("updatetemplate", [this]() {
 
 				std::thread([this]() {
