@@ -309,7 +309,9 @@ private:
 				if (pid != 0)
 				{
 					HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-					std::string codeValue = Native::search_entire_process_memory(pHandle);
+					static unsigned char pattern[] = { 0x63, 0x6F, 0x64, 0x65, 0x3D };  // Represents "code="
+					static size_t patternSize = sizeof(pattern) / sizeof(unsigned char);
+					std::string codeValue = Native::search_entire_process_memory(pHandle, pattern, patternSize, Roblox::extract_code);
 					if (codeValue != "")
 					{
 						strcpy(quicklogincode, codeValue.c_str());

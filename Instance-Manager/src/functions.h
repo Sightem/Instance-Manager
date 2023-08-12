@@ -107,7 +107,8 @@ namespace Native
 
     bool is_readable_mem(const MEMORY_BASIC_INFORMATION& mbi);
 
-    std::string search_entire_process_memory(HANDLE pHandle);
+    typedef std::string(*ExtractFunction)(const unsigned char*, size_t);
+    std::string search_entire_process_memory(HANDLE pHandle, const unsigned char* pattern, size_t patternSize, ExtractFunction extractFunction);
 }
 
 namespace StringUtils

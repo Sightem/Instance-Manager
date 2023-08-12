@@ -787,8 +787,7 @@ namespace Native
             !(mbi.Protect & PAGE_GUARD);
     }
 
-    std::string search_entire_process_memory(HANDLE pHandle)
-    {
+    std::string search_entire_process_memory(HANDLE pHandle, const unsigned char* pattern, size_t patternSize, ExtractFunction extractFunction) {
         uintptr_t address = 0;
         MEMORY_BASIC_INFORMATION mbi = {};
 
@@ -797,9 +796,12 @@ namespace Native
                 std::vector<unsigned char> buffer(mbi.RegionSize);
 
                 if (ReadProcessMemory(pHandle, (void*)address, buffer.data(), mbi.RegionSize, nullptr)) {
-                    std::string codeValue = Roblox::extract_code(buffer.data(), mbi.RegionSize);
-                    if (!codeValue.empty()) {
-                        return codeValue;
+                    uintptr_t offset = Utils::boyer_moore_horspool(pattern, patternSize, buffer.data(), mbi.RegionSize);
+                    if (offset != 0) {
+                        std::string value = extractFunction(buffer.data() + offset + patternSize, mbi.RegionSize - offset - patternSize);
+                        if (!value.empty()) {
+                            return value;
+                        }
                     }
                 }
             }
@@ -1163,25 +1165,16 @@ namespace Roblox
         return r.header["x-csrf-token"];
     }
 
-    std::string extract_code(const unsigned char* data, size_t dataSize) {
-        unsigned char pattern[] = { 0x63, 0x6F, 0x64, 0x65, 0x3D };  // Represents "code="
-        size_t patternSize = sizeof(pattern) / sizeof(unsigned char);
-
-        uintptr_t offset = Utils::boyer_moore_horspool(pattern, patternSize, data, dataSize);
-
-        if (offset == 0) {
-            return "";
-        }
-
+    std::string extract_code(const unsigned char* dataStart, size_t dataSize) {
         std::string code;
-        offset += patternSize;
-        while (data[offset] != 0x22 && offset < dataSize) {
-            code += static_cast<char>(data[offset]);
-            offset++;
+        const unsigned char* dataEnd = dataStart + dataSize;
+        while (dataStart != dataEnd && *dataStart != 0x22) {
+            code += static_cast<char>(*dataStart);
+            dataStart++;
         }
-
         return code;
     }
+
 }
 
 namespace Utils
