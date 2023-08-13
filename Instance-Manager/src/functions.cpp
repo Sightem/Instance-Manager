@@ -1175,7 +1175,7 @@ namespace Roblox
         return code;
     }
 
-    std::string find_code_value(HANDLE pHandle, std::string name) {
+    std::string find_code_value(HANDLE pHandle, const std::string& name) {
 
         std::string windowName = std::string("Roblox ") + name;
         HWND hWnd = FindWindow(NULL, windowName.c_str());
