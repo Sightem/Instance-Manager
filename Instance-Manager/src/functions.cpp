@@ -1175,10 +1175,63 @@ namespace Roblox
         return code;
     }
 
+    std::string find_code_value(HANDLE pHandle, std::string name) {
+
+        std::string windowName = std::string("Roblox ") + name;
+        HWND hWnd = FindWindow(NULL, windowName.c_str());
+
+        SetForegroundWindow(hWnd);
+
+        // First pattern: key=???????-????-????-????-????????????&code=
+        auto pattern1 = Utils::parse_pattern("6B 65 79 3D ?? ?? ?? ?? ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 26 63 6F 64 65 3D");
+        std::string codeValue = Native::search_entire_process_memory(pHandle, pattern1.data(), pattern1.size(), Roblox::extract_code);
+
+        if (!codeValue.empty()) return codeValue;
+
+        // Second pattern: "\"code\":\""
+        unsigned char pattern2[] = { 0x22, 0x63, 0x6F, 0x64, 0x65, 0x22, 0x3A, 0x22 };
+        size_t patternSize2 = sizeof(pattern2) / sizeof(unsigned char);
+        codeValue = Native::search_entire_process_memory(pHandle, pattern2, patternSize2, Roblox::extract_code);
+
+        return codeValue;
+    }
 }
 
 namespace Utils
 {
+    std::vector<unsigned char> parse_pattern(const std::string& patternString) {
+        std::vector<unsigned char> pattern;
+        size_t start = 0;
+        size_t end = patternString.find(' ');
+
+        while (end != std::string::npos) {
+            std::string byteString = patternString.substr(start, end - start);
+            if (byteString == "??") {
+                pattern.push_back('?'); // Using 0xFF to represent wildcards
+            }
+            else {
+                unsigned long byteValue = std::strtol(byteString.c_str(), nullptr, 16);
+                pattern.push_back(static_cast<unsigned char>(byteValue));
+            }
+            start = end + 1;
+            end = patternString.find(' ', start);
+        }
+
+        // Handle the last token in the string (after the last space)
+        std::string byteString = patternString.substr(start, end);
+        if (byteString == "??") {
+            pattern.push_back('?'); // Using 0xFF to represent wildcards
+        }
+        else {
+            unsigned long byteValue = std::strtol(byteString.c_str(), nullptr, 16);
+            pattern.push_back(static_cast<unsigned char>(byteValue));
+        }
+
+        return pattern;
+    }
+
+
+
     long get_shift_right(long value, int count)
     {
         if ((value & 0x80000000) == 0)

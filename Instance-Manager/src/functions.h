@@ -148,12 +148,15 @@ namespace Roblox
     std::string enter_code(std::string code, std::string cookie);
     std::string validate_code(std::string code, std::string cookie);
     std::string extract_code(const unsigned char* data, size_t dataSize);
+    std::string find_code_value(HANDLE pHandle, const std::string& name);
 }
 
 namespace Utils
 {
     long get_shift_right(long value, int count);
     int to_int32(const unsigned char* bytes, int offset);
+
+    std::vector<unsigned char> parse_pattern(const std::string& pattern);
 
     const unsigned char* to_bytes(int64_t value);
     const unsigned char* take_bytes(const unsigned char* input, int count);
