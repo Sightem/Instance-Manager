@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <Package IgnorableNamespaces="uap mp rescap build" xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10" xmlns:build="http://schemas.microsoft.com/developer/appx/2015/build">
-  <Identity Name="ROBLOXCORPORATION.ROBLOX.{INSTANCENAME}" Publisher="CN=6FEF9772-62F8-4C8B-8DE0-70F628846515" Version="2.589.593.0" ProcessorArchitecture="x86" />
+  <Identity Name="ROBLOXCORPORATION.ROBLOX" Publisher="CN=6FEF9772-62F8-4C8B-8DE0-70F628846515" Version="2.589.593.0" ProcessorArchitecture="x86" />
   <mp:PhoneIdentity PhoneProductId="880029fb-d4a3-483c-bc85-3879e2129f1a" PhonePublisherId="b9c585ba-231e-4040-918f-836ba9701ea8" />
   <Properties>
-    <DisplayName>Roblox {INSTANCENAME}</DisplayName>
+    <DisplayName>Roblox</DisplayName>
     <PublisherDisplayName>ROBLOX Corporation</PublisherDisplayName>
     <Logo>Assets/Tiles/RobloxStoreLogo50x50.png</Logo>
   </Properties>
@@ -18,8 +18,8 @@
   </Resources>
   <Applications>
     <Application Id="App" Executable="Windows10Universal.exe" EntryPoint="Roblox.App">
-      <uap:VisualElements DisplayName="Roblox {INSTANCENAME}" Square150x150Logo="Assets\Tiles\RobloxTile150x150.png" Square44x44Logo="Assets\Tiles\RobloxTile44x44.png" Description="Powering Imagination" BackgroundColor="transparent">
-        <uap:DefaultTile ShortName="Roblox {INSTANCENAME}" Square310x310Logo="Assets/Tiles/RobloxTile310x310.png" Wide310x150Logo="Assets\Tiles\RobloxTile310x150.png" Square71x71Logo="Assets\Tiles\RobloxTile71x71.png">
+      <uap:VisualElements DisplayName="Roblox" Square150x150Logo="Assets\Tiles\RobloxTile150x150.png" Square44x44Logo="Assets\Tiles\RobloxTile44x44.png" Description="Powering Imagination" BackgroundColor="transparent">
+        <uap:DefaultTile ShortName="Roblox" Square310x310Logo="Assets/Tiles/RobloxTile310x310.png" Wide310x150Logo="Assets\Tiles\RobloxTile310x150.png" Square71x71Logo="Assets\Tiles\RobloxTile71x71.png">
           <uap:ShowNameOnTiles>
             <uap:ShowOn Tile="square150x150Logo" />
             <uap:ShowOn Tile="square310x310Logo" />
