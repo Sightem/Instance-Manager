@@ -8,37 +8,14 @@
 #include <nlohmann/json.hpp>
 #include "md5.h"
 #include <map>
+#include "request.hpp"
+#include "AppLog.hpp"
 
 #define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 
 namespace FS
 {
-    std::vector<std::string> enumerate_directories(const std::string& path, int depth, bool onlyNames) {
-        std::vector<std::string> directories;
-
-        if (depth < 0) {
-            return directories;
-        }
-
-        try {
-            for (const auto& entry : std::filesystem::directory_iterator(path)) {
-                if (std::filesystem::is_directory(entry.status())) {
-                    directories.push_back(onlyNames ? entry.path().filename().string() : entry.path().string());
-                    if (depth > 1) {
-                        auto subDirs = enumerate_directories(entry.path().string(), depth - 1, onlyNames);
-                        directories.insert(directories.end(), subDirs.begin(), subDirs.end());
-                    }
-                }
-            }
-        }
-        catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-
-        return directories;
-    }
-
-    bool copy_directory(const std::filesystem::path& src, const std::filesystem::path& dst)
+    bool CopyDirectory(const std::filesystem::path& src, const std::filesystem::path& dst)
     {
         auto abs_src = std::filesystem::absolute(src);
         auto abs_dst = std::filesystem::absolute(dst);
@@ -76,54 +53,7 @@ namespace FS
         return true;
     }
 
-    std::string replace_pattern_in_file(const std::filesystem::path& filePath,
-        const std::string& pattern,
-        const std::string& replacement)
-    {
-        // Step 1: Read the file into a string
-        std::ifstream inFile(filePath);
-        std::stringstream buffer;
-        buffer << inFile.rdbuf();
-        std::string fileContent = buffer.str();
-        inFile.close();
-
-        std::cout << fileContent << std::endl;
-
-        // Step 2: Replace the pattern with the replacement string
-        size_t pos = 0;
-        while ((pos = fileContent.find(pattern, pos)) != std::string::npos) {
-            fileContent.replace(pos, pattern.size(), replacement);
-            pos += replacement.size(); // Move the position after the replacement
-        }
-
-        std::cout << fileContent << std::endl;
-
-        // Step 3: Return the modified content
-        return fileContent;
-    }
-
-    std::string replace_pattern_in_content(const std::vector<char8_t>& contentVec, const std::string& pattern, const std::string& replacement)
-    {
-        // Step 1: Convert the vector to a string
-        std::string fileContent(contentVec.begin(), contentVec.end());
-
-        std::cout << fileContent << std::endl;
-
-        // Step 2: Replace the pattern with the replacement string
-        size_t pos = 0;
-        while ((pos = fileContent.find(pattern, pos)) != std::string::npos) {
-            fileContent.replace(pos, pattern.size(), replacement);
-            pos += replacement.size(); // Move the position after the replacement
-        }
-
-        std::cout << fileContent << std::endl;
-
-        // Step 3: Return the modified content
-        return fileContent;
-    }
-
-
-    bool remove_path(const std::filesystem::path& path_to_delete)
+    bool RemovePath(const std::filesystem::path& path_to_delete)
     {
         std::error_code ec;
 
@@ -160,12 +90,12 @@ namespace FS
         }
     }
 
-    bool decompress_zip(const std::string& zipPath, const std::string& destination) {
+    bool DecompressZip(const std::string& zipPath, const std::string& destination) {
         using namespace libzippp;
 
         ZipArchive zip(zipPath);
         if (!zip.open(ZipArchive::ReadOnly)) {
-            std::cerr << "Failed to open zip archive: " << zipPath << std::endl;
+            AppLog::getInstance().add_log("Failed to open zip archive: {}", zipPath);
             return false;
         }
 
@@ -187,7 +117,7 @@ namespace FS
                         outputFile.close();
                     }
                     else {
-                        std::cerr << "Failed to write file: " << outputPath << std::endl;
+                        AppLog::getInstance().add_log("Failed to write file: {}", outputPath);
                     }
                 }
             }
@@ -198,19 +128,19 @@ namespace FS
         return true;
     }
 
-    bool decompress_zip_to_file(const std::string& zipPath, const std::string& destination) {
+    bool DecompressZipToFile(const std::string& zipPath, const std::string& destination) {
         using namespace libzippp;
 
         ZipArchive zip(zipPath);
         if (!zip.open(ZipArchive::ReadOnly)) {
-            std::cerr << "Failed to open zip archive: " << zipPath << std::endl;
+            AppLog::getInstance().add_log("Failed to open zip archive: {}", zipPath);
             return false;
         }
 
         auto nbEntries = zip.getNbEntries();
 
         if (nbEntries != 1) {
-            std::cerr << "Zip archive must contain only one file" << std::endl;
+            AppLog::getInstance().add_log("Zip archive must contain only one file: {}", zipPath);
             zip.close();
             return false;
         }
@@ -224,13 +154,13 @@ namespace FS
                 outputFile.close();
             }
             else {
-                std::cerr << "Failed to write file: " << destination << std::endl;
+                AppLog::getInstance().add_log("Failed to write file: {}", destination);
                 zip.close();
                 return false;
             }
         }
         else {
-            std::cerr << "Invalid zip entry" << std::endl;
+            AppLog::getInstance().add_log("Invalid zip entry: {}", zipPath);
             zip.close();
             return false;
         }
@@ -240,7 +170,7 @@ namespace FS
         return true;
     }
 
-    std::vector<std::string> find_files(const std::string& path, const std::string& substring) {
+    std::vector<std::string> FindFiles(const std::string& path, const std::string& substring) {
         std::vector<std::string> result;
         try {
             for (const auto& entry : std::filesystem::directory_iterator(path)) {
@@ -391,34 +321,7 @@ namespace ui
 
 namespace Native
 {
-    bool enable_developer_mode()
-    {
-        HKEY hKey = nullptr;
-        const wchar_t* subkey = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AppModelUnlock";
-        DWORD allowAllTrustedApps = 1;
-        DWORD disposition;
-
-        LONG result = RegCreateKeyExW(HKEY_LOCAL_MACHINE, subkey, 0, nullptr, 0, KEY_WRITE, nullptr, &hKey, &disposition);
-        if (result != ERROR_SUCCESS)
-        {
-            std::wcerr << L"Failed to open or create the registry key. Error code: " << result << std::endl;
-            return false;
-        }
-
-        result = RegSetValueExW(hKey, L"AllowAllTrustedApps", 0, REG_DWORD, (const BYTE*)&allowAllTrustedApps, sizeof(DWORD));
-        if (result != ERROR_SUCCESS)
-        {
-            std::wcerr << L"Failed to set the registry value. Error code: " << result << std::endl;
-            RegCloseKey(hKey);
-            return false;
-        }
-
-        RegCloseKey(hKey);
-        return true;
-    }
-
-
-    std::string run_powershell_command(const std::string& command) {
+    std::string RunPowershellCommand(const std::string& command) {
         SECURITY_ATTRIBUTES security_attributes;
         ZeroMemory(&security_attributes, sizeof(security_attributes));
         security_attributes.nLength = sizeof(security_attributes);
@@ -467,7 +370,7 @@ namespace Native
         return output;
     }
 
-    std::string get_current_username() {
+    std::string GetCurrentUsername() {
         char username[UNLEN + 1];
         DWORD username_len = UNLEN + 1;
 
@@ -478,7 +381,7 @@ namespace Native
         return "";
     }
 
-    std::string get_user_sid() {
+    std::string GetUserSID() {
         HANDLE hToken = NULL;
         DWORD dwSize = 0;
         TOKEN_USER* pTokenUser = NULL;
@@ -529,7 +432,7 @@ namespace Native
         return sSid;
     }
 
-    std::string get_user_experience()
+    std::string GetUserExperience()
     {
         const std::wstring userExperience = L"User Choice set via Windows User Experience {D18B6DD5-6124-4341-9318-804003BAFA0B}";
         const std::wstring str1 = L"User Choice set via Windows User Experience";
@@ -542,7 +445,7 @@ namespace Native
         if (!file)
         {
             std::cerr << "Failed to open file." << std::endl;
-            return StringUtils::wstr_to_str(userExperience);
+            return StringUtils::WStrToStr(userExperience);
         }
 
         file.seekg(0, std::ios::end);
@@ -560,14 +463,14 @@ namespace Native
             size_t endIndex = str2.find(L"}", startIndex);
             if (endIndex != std::wstring::npos)
             {
-                return StringUtils::wstr_to_str(str2.substr(startIndex, endIndex - startIndex + 1));
+                return StringUtils::WStrToStr(str2.substr(startIndex, endIndex - startIndex + 1));
             }
         }
 
-        return StringUtils::wstr_to_str(userExperience);
+        return StringUtils::WStrToStr(userExperience);
     }
 
-    std::string get_hex_datetime()
+    std::string GetHexDatetime()
     {
         using namespace std::chrono;
         system_clock::time_point now = system_clock::now();
@@ -595,12 +498,11 @@ namespace Native
         return ss.str();
     }
 
-    void write_protocol_keys(const std::string& progId, const std::string& protocol, const std::string& progHash)
+    void WriteProtocolKeys(const std::string& progId, const std::string& protocol, const std::string& progHash)
     {
         HKEY hKey;
         std::string keyName = "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\" + protocol + "\\UserChoice";
         DWORD disposition;
-
 
         if (RegCreateKeyExA(HKEY_CURRENT_USER, keyName.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, nullptr, &hKey, &disposition) == ERROR_SUCCESS)
         {
@@ -612,7 +514,7 @@ namespace Native
         }
     }
 
-    std::map<std::string, std::string> get_progid_names()
+    std::map<std::string, std::string> GetProgIDNames()
     {
         HKEY hKey;
         LONG lResult;
@@ -666,7 +568,7 @@ namespace Native
         return ProgIdNames;
     }
 
-    PVOID get_peb_address(HANDLE ProcessHandle)
+    PVOID GetPebAddress(HANDLE ProcessHandle)
     {
         _NtQueryInformationProcess NtQueryInformationProcess =
             (_NtQueryInformationProcess)GetProcAddress(
@@ -694,7 +596,7 @@ namespace Native
             return std::string();
         }
 
-        pebAddress = get_peb_address(processHandle);
+        pebAddress = GetPebAddress(processHandle);
 
         if (!ReadProcessMemory(processHandle,
             &(((_PEB*)pebAddress)->ProcessParameters),
@@ -726,30 +628,13 @@ namespace Native
         return command_line_str;
     }
 
-    bool open_in_explorer(const std::string& path, bool isFile) noexcept {
+    bool OpenInExplorer(const std::string& path, bool isFile) {
         std::string cmd = isFile ? "/select," + path : path;
         HINSTANCE result = ShellExecute(0, "open", "explorer.exe", cmd.c_str(), 0, SW_SHOW);
         return (int)result > 32;
     }
 
-
-    BOOL CALLBACK _enum_window_proc(HWND hwnd, LPARAM lParam) {
-        DWORD pid;
-        GetWindowThreadProcessId(hwnd, &pid);
-
-        if (pid == (DWORD)lParam) {
-            ShowWindow(hwnd, SW_MINIMIZE);
-            return FALSE;
-        }
-
-        return TRUE;
-    }
-
-    void minimize_window(DWORD pid) {
-        EnumWindows(_enum_window_proc, (LPARAM)pid);
-    }
-
-    bool set_process_affinity(DWORD processID, DWORD requestedCores)
+    bool SetProcessAffinity(DWORD processID, DWORD requestedCores)
     {
         SYSTEM_INFO sysInfo;
         GetSystemInfo(&sysInfo);
@@ -781,22 +666,22 @@ namespace Native
         return true;
     }
 
-    bool is_readable_mem(const MEMORY_BASIC_INFORMATION& mbi) {
+    bool IsReadableMemory(const MEMORY_BASIC_INFORMATION& mbi) {
         return mbi.State == MEM_COMMIT &&
             !(mbi.Protect & PAGE_NOACCESS) &&
             !(mbi.Protect & PAGE_GUARD);
     }
 
-    std::string search_entire_process_memory(HANDLE pHandle, const unsigned char* pattern, size_t patternSize, ExtractFunction extractFunction) {
+    std::string SearchEntireProcessMemory(HANDLE pHandle, const unsigned char* pattern, size_t patternSize, ExtractFunction extractFunction) {
         uintptr_t address = 0;
         MEMORY_BASIC_INFORMATION mbi = {};
 
         while (VirtualQueryEx(pHandle, (void*)address, &mbi, sizeof(mbi))) {
-            if (is_readable_mem(mbi)) {
+            if (IsReadableMemory(mbi)) {
                 std::vector<unsigned char> buffer(mbi.RegionSize);
 
                 if (ReadProcessMemory(pHandle, (void*)address, buffer.data(), mbi.RegionSize, nullptr)) {
-                    uintptr_t offset = Utils::boyer_moore_horspool(pattern, patternSize, buffer.data(), mbi.RegionSize);
+                    uintptr_t offset = Utils::BoyerMooreHorspool(pattern, patternSize, buffer.data(), mbi.RegionSize);
                     if (offset != 0) {
                         std::string value = extractFunction(buffer.data() + offset + patternSize, mbi.RegionSize - offset - patternSize);
                         if (!value.empty()) {
@@ -821,16 +706,7 @@ namespace StringUtils
         return s.find_first_not_of(c) == std::string::npos;
     }
 
-    std::string replace_all(std::string str, const std::string& from, const std::string& to) {
-        size_t startPos = 0;
-        while ((startPos = str.find(from, startPos)) != std::string::npos) {
-            str.replace(startPos, from.length(), to);
-            startPos += to.length();  // Move past the replaced part in case 'to' contains 'from'
-        }
-        return str;
-    }
-
-    bool copy_to_clipboard(const std::string& data) {
+    bool CopyToClipboard(const std::string& data) {
         if (!OpenClipboard(nullptr)) {
             return false;
         }
@@ -871,15 +747,7 @@ namespace StringUtils
         return true;
     }
 
-    std::string get_after_last_occurrence(const std::string& source, char ch) {
-        size_t pos = source.rfind(ch);
-        if (pos != std::string::npos) {
-            return source.substr(pos + 1);
-        }
-        return "";
-    }
-
-    std::string base64_encode(const unsigned char* buffer, size_t length)
+    std::string Base64Encode(const unsigned char* buffer, size_t length)
     {
         BIO* bio, * b64;
         long len;
@@ -900,7 +768,7 @@ namespace StringUtils
         return result;
     }
 
-    std::string wstr_to_str(const std::wstring& wstr)
+    std::string WStrToStr(const std::wstring& wstr)
     {
         int numBytes = WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
         std::vector<char> buffer(numBytes);
@@ -912,21 +780,21 @@ namespace StringUtils
 
 namespace Roblox
 {
-    void nuke_instance(const std::string name, const std::string path)
+    void NukeInstane(const std::string name, const std::string path)
     {
         std::string cmd = "Get-AppxPackage -Name \"" + name + "\" | Remove-AppxPackage";
-        Native::run_powershell_command(cmd);
+        Native::RunPowershellCommand(cmd);
 
-        FS::remove_path(path);
+        FS::RemovePath(path);
     }
 
-    std::vector<RobloxPackage> process_roblox_packages()
+    std::vector<RobloxPackage> ProcessRobloxPackages()
     {
-        auto ProgIdNames = Native::get_progid_names();
+        auto ProgIdNames = Native::GetProgIDNames();
         std::vector<RobloxPackage> userInstancesVec;
 
         // Run the PowerShell command
-        std::string output = Native::run_powershell_command("Get-AppxPackage ROBLOXCORPORATION.ROBLOX.* | Format-List -Property Name, PackageFullName, InstallLocation, PackageFamilyName, Version");
+        std::string output = Native::RunPowershellCommand("Get-AppxPackage ROBLOXCORPORATION.ROBLOX.* | Format-List -Property Name, PackageFullName, InstallLocation, PackageFamilyName, Version");
 
         // Split the output into lines
         std::stringstream ss(output);
@@ -942,6 +810,7 @@ namespace Roblox
             std::string packageFullName = match[2].str();
             std::string installLocationRaw = match[3].str();
             std::string installLocation = std::regex_replace(installLocationRaw, std::regex("\n\\s{20}"), "");
+            installLocation.erase(std::remove(installLocation.begin(), installLocation.end(), '\r'), installLocation.end());
             std::string packageFamilyName = match[4].str();
             std::string version = match[5].str();
 
@@ -977,9 +846,9 @@ namespace Roblox
         return userInstancesVec;
     }
 
-    std::vector<RobloxInstance> wrap_packages()
+    std::vector<RobloxInstance> WrapPackages()
     {
-        std::vector<RobloxPackage> packages = process_roblox_packages();
+        std::vector<RobloxPackage> packages = ProcessRobloxPackages();
 
         std::vector<RobloxInstance> instances;
 
@@ -999,36 +868,36 @@ namespace Roblox
         return instances;
     }
 
-    void launch_roblox(std::string AppID, const std::string& placeid)
+    void LaunchRoblox(std::string AppID, const std::string& placeid)
     {
-        std::string userSid = Native::get_user_sid();
-        std::string userExperience = Native::get_user_experience();
-        std::string hexDateTime = Native::get_hex_datetime();
+        std::string userSid = Native::GetUserSID();
+        std::string userExperience = Native::GetUserExperience();
+        std::string hexDateTime = Native::GetHexDatetime();
 
         static std::string protocol = "roblox";
 
         std::string lower = protocol + userSid + AppID + hexDateTime + userExperience;
         std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
 
-        Native::write_protocol_keys(AppID, protocol, Utils::get_hash(lower));
+        Native::WriteProtocolKeys(AppID, protocol, Utils::GetHash(lower));
         //call SHChangeNotify
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 
         system(fmt::format("start roblox://placeId={}/", placeid).c_str());
     }
 
-    void launch_roblox(std::string AppID, const std::string& placeid, const std::string& linkcode)
+    void LaunchRoblox(std::string AppID, const std::string& placeid, const std::string& linkcode)
     {
-        std::string userSid = Native::get_user_sid();
-        std::string userExperience = Native::get_user_experience();
-        std::string hexDateTime = Native::get_hex_datetime();
+        std::string userSid = Native::GetUserSID();
+        std::string userExperience = Native::GetUserExperience();
+        std::string hexDateTime = Native::GetHexDatetime();
 
         static std::string protocol = "roblox";
 
         std::string lower = protocol + userSid + AppID + hexDateTime + userExperience;
         std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
 
-        Native::write_protocol_keys(AppID, protocol, Utils::get_hash(lower));
+        Native::WriteProtocolKeys(AppID, protocol, Utils::GetHash(lower));
         //call SHChangeNotify
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 
@@ -1039,7 +908,7 @@ namespace Roblox
 
 
 
-    std::set<DWORD> get_roblox_instances()
+    std::set<DWORD> GetRobloxInstances()
     {
         std::set<DWORD> pidSet;
         PROCESSENTRY32 entry;
@@ -1074,7 +943,7 @@ namespace Roblox
         return pidSet;
     }
 
-    ModifyXMLError modify_settings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue)
+    ModifyXMLError ModifySettings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue)
     {
         tinyxml2::XMLDocument doc;
         tinyxml2::XMLError eResult = doc.LoadFile(filePath.c_str());
@@ -1124,14 +993,14 @@ namespace Roblox
         return ModifyXMLError::Success;
     }
 
-    std::string enter_code(std::string code, std::string cookie)
+    std::string EnterCode(std::string code, std::string cookie)
     {
         nlohmann::json j;
         j["code"] = code;
 
         cpr::Response r = cpr::Post(
             cpr::Url{ "https://apis.roblox.com/auth-token-service/v1/login/enterCode" },
-            cpr::Header{ {"Content-Type", "application/json"}, { "Referer", "https://www.roblox.com/" }, { "User-Agent", USER_AGENT }, { "x-csrf-token", get_csrf(cookie) }, { "Accept", "application/json" }, { "Origin", "https://www.roblox.com" } },
+            cpr::Header{ {"Content-Type", "application/json"}, { "Referer", "https://www.roblox.com/" }, { "User-Agent", USER_AGENT }, { "x-csrf-token", GetCSRF(cookie) }, { "Accept", "application/json" }, { "Origin", "https://www.roblox.com" } },
             cpr::Cookies{ {".ROBLOSECURITY", cookie} },
             cpr::Body{ j.dump() }
         );
@@ -1139,14 +1008,14 @@ namespace Roblox
         return r.text;
     }
 
-    std::string validate_code(std::string code, std::string cookie)
+    std::string ValidateCode(std::string code, std::string cookie)
     {
         nlohmann::json j;
         j["code"] = code;
 
         cpr::Response r = cpr::Post(
             cpr::Url{ "https://apis.roblox.com/auth-token-service/v1/login/validateCode" },
-            cpr::Header{ {"Content-Type", "application/json"}, { "Referer", "https://www.roblox.com/" }, { "User-Agent", USER_AGENT }, { "x-csrf-token", get_csrf(cookie) }, { "Accept", "application/json" }, { "Origin", "https://www.roblox.com" } },
+            cpr::Header{ {"Content-Type", "application/json"}, { "Referer", "https://www.roblox.com/" }, { "User-Agent", USER_AGENT }, { "x-csrf-token", GetCSRF(cookie) }, { "Accept", "application/json" }, { "Origin", "https://www.roblox.com" } },
             cpr::Cookies{ {".ROBLOSECURITY", cookie} },
             cpr::Body{ j.dump() }
         );
@@ -1154,7 +1023,7 @@ namespace Roblox
         return r.text;
     }
 
-    std::string get_csrf(std::string cookie)
+    std::string GetCSRF(std::string cookie)
     {
         cpr::Response r = cpr::Post(
             cpr::Url{ "https://auth.roblox.com/v1/authentication-ticket" },
@@ -1165,7 +1034,7 @@ namespace Roblox
         return r.header["x-csrf-token"];
     }
 
-    std::string extract_code(const unsigned char* dataStart, size_t dataSize) {
+    std::string ExtractCode(const unsigned char* dataStart, size_t dataSize) {
         std::string code;
         const unsigned char* dataEnd = dataStart + dataSize;
         while (dataStart != dataEnd && *dataStart != 0x22) {
@@ -1175,7 +1044,7 @@ namespace Roblox
         return code;
     }
 
-    std::string find_code_value(HANDLE pHandle, const std::string& name) {
+    std::string FindCodeValue(HANDLE pHandle, const std::string& name) {
 
         std::string windowName = std::string("Roblox ") + name;
         HWND hWnd = FindWindow(NULL, windowName.c_str());
@@ -1183,23 +1052,44 @@ namespace Roblox
         SetForegroundWindow(hWnd);
 
         // First pattern: key=???????-????-????-????-????????????&code=
-        auto pattern1 = Utils::parse_pattern("6B 65 79 3D ?? ?? ?? ?? ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 26 63 6F 64 65 3D");
-        std::string codeValue = Native::search_entire_process_memory(pHandle, pattern1.data(), pattern1.size(), Roblox::extract_code);
+        auto pattern1 = Utils::ParsePattern("6B 65 79 3D ?? ?? ?? ?? ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 26 63 6F 64 65 3D");
+        std::string codeValue = Native::SearchEntireProcessMemory(pHandle, pattern1.data(), pattern1.size(), Roblox::ExtractCode);
 
         if (!codeValue.empty()) return codeValue;
 
         // Second pattern: "\"code\":\""
         unsigned char pattern2[] = { 0x22, 0x63, 0x6F, 0x64, 0x65, 0x22, 0x3A, 0x22 };
         size_t patternSize2 = sizeof(pattern2) / sizeof(unsigned char);
-        codeValue = Native::search_entire_process_memory(pHandle, pattern2, patternSize2, Roblox::extract_code);
+        codeValue = Native::SearchEntireProcessMemory(pHandle, pattern2, patternSize2, Roblox::ExtractCode);
 
         return codeValue;
+    }
+
+    std::vector<RobloxInstance> GetNewInstances(const std::vector<RobloxInstance>& old_instances) {
+        std::vector<RobloxInstance> new_instances = Roblox::WrapPackages();
+        std::vector<RobloxInstance> result;
+
+        // Check if an instance in new_instances is not present in old_instances
+        for (const auto& new_instance : new_instances) {
+            bool found = false;
+            for (const auto& old_instance : old_instances) {
+                if (new_instance.Package.AppID == old_instance.Package.AppID) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                result.push_back(new_instance);
+            }
+        }
+
+        return result;
     }
 }
 
 namespace Utils
 {
-    std::vector<unsigned char> parse_pattern(const std::string& patternString) {
+    std::vector<unsigned char> ParsePattern(const std::string& patternString) {
         std::vector<unsigned char> pattern;
         size_t start = 0;
         size_t end = patternString.find(' ');
@@ -1232,7 +1122,7 @@ namespace Utils
 
 
 
-    long get_shift_right(long value, int count)
+    long GetShiftRight(long value, int count)
     {
         if ((value & 0x80000000) == 0)
         {
@@ -1245,12 +1135,12 @@ namespace Utils
     }
 
     //this is some Cnile shit, gotta fix it
-    int to_int32(const unsigned char* bytes, int offset)
+    int ToInt32(const unsigned char* bytes, int offset)
     {
         return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24));
     }
 
-    const unsigned char* to_bytes(int64_t value)
+    const unsigned char* ToBytes(int64_t value)
     {
         static unsigned char bytes[8];
         bytes[0] = value & 0xFF;
@@ -1264,7 +1154,7 @@ namespace Utils
         return bytes;
     }
 
-    const unsigned char* take_bytes(const unsigned char* input, int count)
+    const unsigned char* TakeBytes(const unsigned char* input, int count)
     {
         static unsigned char result[8];
         for (int i = 0; i < count && i < 8; ++i) {
@@ -1304,7 +1194,7 @@ namespace Utils
         }
     };
 
-    std::string get_hash(const std::string& baseInfo)
+    std::string GetHash(const std::string& baseInfo)
     {
         std::vector<unsigned char> bytes(baseInfo.begin(), baseInfo.end());
 
@@ -1324,7 +1214,7 @@ namespace Utils
 
 
         int lengthBase = baseInfo.length() * 2 + 2;
-        int length = (((lengthBase & 4) <= 1) ? 1 : 0) + Utils::get_shift_right(lengthBase, 2) - 1;
+        int length = (((lengthBase & 4) <= 1) ? 1 : 0) + Utils::GetShiftRight(lengthBase, 2) - 1;
         std::string base64Hash;
 
         if (length > 1) {
@@ -1332,34 +1222,34 @@ namespace Utils
             map.CACHE = 0;
             map.OUTHASH1 = 0;
             map.PDATA = 0;
-            map.MD51 = (to_int32(md5Result, 0) | 1) + static_cast<int>(0x69FB0000L);
-            map.MD52 = (to_int32(md5Result, 4) | 1) + static_cast<int>(0x13DB0000L);
-            map.INDEX = static_cast<int>(get_shift_right(length - 2, 1));
+            map.MD51 = (ToInt32(md5Result, 0) | 1) + static_cast<int>(0x69FB0000L);
+            map.MD52 = (ToInt32(md5Result, 4) | 1) + static_cast<int>(0x13DB0000L);
+            map.INDEX = static_cast<int>(GetShiftRight(length - 2, 1));
             map.COUNTER = map.INDEX + 1;
 
             while (map.COUNTER > 0) {
-                map.R0 = to_int32(to_bytes(to_int32(bytes.data(), static_cast<int>(map.PDATA)) + map.OUTHASH1), 0);
-                map.R1[0] = to_int32(to_bytes(to_int32(bytes.data(), static_cast<int>(map.PDATA) + 4)), 0);
+                map.R0 = ToInt32(ToBytes(ToInt32(bytes.data(), static_cast<int>(map.PDATA)) + map.OUTHASH1), 0);
+                map.R1[0] = ToInt32(ToBytes(ToInt32(bytes.data(), static_cast<int>(map.PDATA) + 4)), 0);
                 map.PDATA = map.PDATA + 8;
-                map.R2[0] = to_int32(to_bytes((map.R0 * map.MD51) - (0x10FA9605L * get_shift_right(map.R0, 16))), 0);
-                map.R2[1] = to_int32(to_bytes((0x79F8A395L * map.R2[0]) + (0x689B6B9FL * get_shift_right(map.R2[0], 16))), 0);
-                map.R3 = to_int32(to_bytes((0xEA970001L * map.R2[1]) - (0x3C101569L * get_shift_right(map.R2[1], 16))), 0);
-                map.R4[0] = to_int32(to_bytes(map.R3 + map.R1[0]), 0);
-                map.R5[0] = to_int32(to_bytes(map.CACHE + map.R3), 0);
-                map.R6[0] = to_int32(to_bytes((map.R4[0] * map.MD52) - (0x3CE8EC25L * get_shift_right(map.R4[0], 16))), 0);
-                map.R6[1] = to_int32(to_bytes((0x59C3AF2DL * map.R6[0]) - (0x2232E0F1L * get_shift_right(map.R6[0], 16))), 0);
-                map.OUTHASH1 = to_int32(to_bytes((0x1EC90001L * map.R6[1]) + (0x35BD1EC9L * get_shift_right(map.R6[1], 16))), 0);
-                map.OUTHASH2 = to_int32(to_bytes(map.R5[0] + map.OUTHASH1), 0);
+                map.R2[0] = ToInt32(ToBytes((map.R0 * map.MD51) - (0x10FA9605L * GetShiftRight(map.R0, 16))), 0);
+                map.R2[1] = ToInt32(ToBytes((0x79F8A395L * map.R2[0]) + (0x689B6B9FL * GetShiftRight(map.R2[0], 16))), 0);
+                map.R3 = ToInt32(ToBytes((0xEA970001L * map.R2[1]) - (0x3C101569L * GetShiftRight(map.R2[1], 16))), 0);
+                map.R4[0] = ToInt32(ToBytes(map.R3 + map.R1[0]), 0);
+                map.R5[0] = ToInt32(ToBytes(map.CACHE + map.R3), 0);
+                map.R6[0] = ToInt32(ToBytes((map.R4[0] * map.MD52) - (0x3CE8EC25L * GetShiftRight(map.R4[0], 16))), 0);
+                map.R6[1] = ToInt32(ToBytes((0x59C3AF2DL * map.R6[0]) - (0x2232E0F1L * GetShiftRight(map.R6[0], 16))), 0);
+                map.OUTHASH1 = ToInt32(ToBytes((0x1EC90001L * map.R6[1]) + (0x35BD1EC9L * GetShiftRight(map.R6[1], 16))), 0);
+                map.OUTHASH2 = ToInt32(ToBytes(map.R5[0] + map.OUTHASH1), 0);
                 map.CACHE = map.OUTHASH2;
                 map.COUNTER = map.COUNTER - 1;
             }
 
             std::vector<unsigned char> outHash(16, 0x00);
-            auto fullbuffer = to_bytes(map.OUTHASH1);
-            auto buffer = take_bytes(fullbuffer, 4);
+            auto fullbuffer = ToBytes(map.OUTHASH1);
+            auto buffer = TakeBytes(fullbuffer, 4);
             std::copy(buffer, buffer + 4, outHash.begin());
-            fullbuffer = to_bytes(map.OUTHASH2);
-            buffer = take_bytes(fullbuffer, 4);
+            fullbuffer = ToBytes(map.OUTHASH2);
+            buffer = TakeBytes(fullbuffer, 4);
             std::copy(buffer, buffer + 4, outHash.begin() + 4);
 
             map.reset();
@@ -1367,43 +1257,43 @@ namespace Utils
             map.CACHE = 0;
             map.OUTHASH1 = 0;
             map.PDATA = 0;
-            map.MD51 = to_int32(md5Result, 0) | 1;
-            map.MD52 = to_int32(md5Result, 4) | 1;
-            map.INDEX = static_cast<int>(get_shift_right(length - 2, 1));
+            map.MD51 = ToInt32(md5Result, 0) | 1;
+            map.MD52 = ToInt32(md5Result, 4) | 1;
+            map.INDEX = static_cast<int>(GetShiftRight(length - 2, 1));
             map.COUNTER = map.INDEX + 1;
             while (map.COUNTER > 0)
             {
-                map.R0 = to_int32(bytes.data(), map.PDATA) + map.OUTHASH1;
+                map.R0 = ToInt32(bytes.data(), map.PDATA) + map.OUTHASH1;
                 map.PDATA = map.PDATA + 8;
-                map.R1[0] = to_int32(to_bytes(map.R0 * map.MD51), 0);
-                map.R1[1] = to_int32(to_bytes((0xB1110000L * map.R1[0]) - (0x30674EEFL * get_shift_right(map.R1[0], 16))), 0);
-                map.R2[0] = to_int32(to_bytes((0x5B9F0000L * map.R1[1]) - (0x78F7A461L * get_shift_right(map.R1[1], 16))), 0);
-                map.R2[1] = to_int32(to_bytes((0x12CEB96DL * get_shift_right(map.R2[0], 16)) - (0x46930000L * map.R2[0])), 0);
-                map.R3 = to_int32(to_bytes((0x1D830000L * map.R2[1]) + (0x257E1D83L * get_shift_right(map.R2[1], 16))), 0);
-                map.R4[0] = to_int32(to_bytes(map.MD52 * (map.R3 + to_int32(bytes.data(), map.PDATA - 4))), 0);
-                map.R4[1] = to_int32(to_bytes((0x16F50000L * map.R4[0]) - (0x5D8BE90BL * get_shift_right(map.R4[0], 16))), 0);
-                map.R5[0] = to_int32(to_bytes((0x96FF0000L * map.R4[1]) - (0x2C7C6901L * get_shift_right(map.R4[1], 16))), 0);
-                map.R5[1] = to_int32(to_bytes((0x2B890000L * map.R5[0]) + (0x7C932B89L * get_shift_right(map.R5[0], 16))), 0);
-                map.OUTHASH1 = to_int32(to_bytes((0x9F690000L * map.R5[1]) - (0x405B6097L * get_shift_right(map.R5[1], 16))), 0);
-                map.OUTHASH2 = to_int32(to_bytes(map.OUTHASH1 + map.CACHE + map.R3), 0);
+                map.R1[0] = ToInt32(ToBytes(map.R0 * map.MD51), 0);
+                map.R1[1] = ToInt32(ToBytes((0xB1110000L * map.R1[0]) - (0x30674EEFL * GetShiftRight(map.R1[0], 16))), 0);
+                map.R2[0] = ToInt32(ToBytes((0x5B9F0000L * map.R1[1]) - (0x78F7A461L * GetShiftRight(map.R1[1], 16))), 0);
+                map.R2[1] = ToInt32(ToBytes((0x12CEB96DL * GetShiftRight(map.R2[0], 16)) - (0x46930000L * map.R2[0])), 0);
+                map.R3 = ToInt32(ToBytes((0x1D830000L * map.R2[1]) + (0x257E1D83L * GetShiftRight(map.R2[1], 16))), 0);
+                map.R4[0] = ToInt32(ToBytes(map.MD52 * (map.R3 + ToInt32(bytes.data(), map.PDATA - 4))), 0);
+                map.R4[1] = ToInt32(ToBytes((0x16F50000L * map.R4[0]) - (0x5D8BE90BL * GetShiftRight(map.R4[0], 16))), 0);
+                map.R5[0] = ToInt32(ToBytes((0x96FF0000L * map.R4[1]) - (0x2C7C6901L * GetShiftRight(map.R4[1], 16))), 0);
+                map.R5[1] = ToInt32(ToBytes((0x2B890000L * map.R5[0]) + (0x7C932B89L * GetShiftRight(map.R5[0], 16))), 0);
+                map.OUTHASH1 = ToInt32(ToBytes((0x9F690000L * map.R5[1]) - (0x405B6097L * GetShiftRight(map.R5[1], 16))), 0);
+                map.OUTHASH2 = ToInt32(ToBytes(map.OUTHASH1 + map.CACHE + map.R3), 0);
                 map.CACHE = map.OUTHASH2;
                 map.COUNTER = map.COUNTER - 1;
             }
 
-            buffer = to_bytes(map.OUTHASH1);
+            buffer = ToBytes(map.OUTHASH1);
             std::copy(buffer, buffer + 4, outHash.begin() + 8);
-            buffer = to_bytes(map.OUTHASH2);
+            buffer = ToBytes(map.OUTHASH2);
             std::copy(buffer, buffer + 4, outHash.begin() + 12);
 
             std::vector<unsigned char> outHashBase(8, 0x00);
-            int hashValue1 = to_int32(outHash.data(), 8) ^ to_int32(outHash.data(), 0);
-            int hashValue2 = to_int32(outHash.data(), 12) ^ to_int32(outHash.data(), 4);
+            int hashValue1 = ToInt32(outHash.data(), 8) ^ ToInt32(outHash.data(), 0);
+            int hashValue2 = ToInt32(outHash.data(), 12) ^ ToInt32(outHash.data(), 4);
 
-            buffer = to_bytes(hashValue1);
+            buffer = ToBytes(hashValue1);
             std::copy(buffer, buffer + 4, outHashBase.begin());
-            buffer = to_bytes(hashValue2);
+            buffer = ToBytes(hashValue2);
             std::copy(buffer, buffer + 4, outHashBase.begin() + 4);
-            base64Hash = StringUtils::base64_encode(outHashBase.data(), outHashBase.size());
+            base64Hash = StringUtils::Base64Encode(outHashBase.data(), outHashBase.size());
 
             return base64Hash;
         }
@@ -1412,7 +1302,7 @@ namespace Utils
         }
     }
 
-    bool save_to_file(const std::string& file_path, const std::vector<char8_t>& buffer)
+    bool SaveToFile(const std::string& file_path, const std::vector<char8_t>& buffer)
     {
         std::ofstream ofs(file_path, std::ios::out | std::ios::binary);
 
@@ -1425,7 +1315,7 @@ namespace Utils
         return true;
     }
 
-    uintptr_t boyer_moore_horspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize) 
+    uintptr_t BoyerMooreHorspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize) 
     {
         size_t maxShift = signatureSize;
         size_t maxIndex = signatureSize - 1;
@@ -1460,4 +1350,116 @@ namespace Utils
 
         return 0;
     }
+
+    void DownloadAndSave(const std::string& url, const std::string& localFileName) {
+        std::vector<char8_t> buffer;
+        Request req(url);
+        req.initalize();
+        req.download_file<char8_t>(buffer);
+        Utils::SaveToFile(localFileName, buffer);
+    }
+
+    void DecompressZip(const std::string& zipFile, const std::string& destination) {
+        if (std::filesystem::exists(destination)) {
+            std::filesystem::remove(destination);
+        }
+        FS::DecompressZipToFile(zipFile, destination);
+    }
+
+    void CopyFileToDestination(const std::string& source, const std::string& destination) {
+        if (std::filesystem::exists(destination)) {
+            std::filesystem::remove(destination);
+        }
+        std::filesystem::copy_file(source, destination);
+    }
+
+    std::string ModifyAppxManifest(std::string inputXML, std::string name)
+    {
+        tinyxml2::XMLDocument doc;
+        doc.Parse(inputXML.c_str());
+
+        // <Identity> element's Name attribute
+        tinyxml2::XMLElement* identityElement = doc.FirstChildElement("Package")->FirstChildElement("Identity");
+        if (identityElement) {
+            const char* nameValue = identityElement->Attribute("Name");
+            if (nameValue) {
+                std::string newNameValue = std::string(nameValue) + "." + name;
+                identityElement->SetAttribute("Name", newNameValue.c_str());
+            }
+        }
+
+        // <uap:VisualElements> tag
+        tinyxml2::XMLElement* visualElement = doc.FirstChildElement("Package")->FirstChildElement("Applications")->FirstChildElement("Application")->FirstChildElement("uap:VisualElements");
+        if (visualElement) {
+            const char* displayNameValue = visualElement->Attribute("DisplayName");
+            if (displayNameValue) {
+                std::string newDisplayNameValue = std::string(displayNameValue) + " " + name;
+                visualElement->SetAttribute("DisplayName", newDisplayNameValue.c_str());
+            }
+        }
+
+        // <uap:DefaultTile> tag
+        tinyxml2::XMLElement* defaultTile = visualElement->FirstChildElement("uap:DefaultTile");
+        if (defaultTile) {
+            const char* shortNameValue = defaultTile->Attribute("ShortName");
+            if (shortNameValue) {
+                std::string newShortNameValue = std::string(shortNameValue) + " " + name;
+                defaultTile->SetAttribute("ShortName", newShortNameValue.c_str());
+            }
+        }
+
+        // <DisplayName> tag under <Properties>
+        tinyxml2::XMLElement* propertiesDisplayName = doc.FirstChildElement("Package")->FirstChildElement("Properties")->FirstChildElement("DisplayName");
+        if (propertiesDisplayName) {
+            const char* displayNameText = propertiesDisplayName->GetText();
+            if (displayNameText) {
+                std::string newDisplayNameText = std::string(displayNameText) + " " + name;
+                propertiesDisplayName->SetText(newDisplayNameText.c_str());
+            }
+        }
+
+        tinyxml2::XMLPrinter printer;
+        doc.Print(&printer);
+        return printer.CStr();
+    }
+
+
+    void WriteAppxManifest(const std::string& url, const std::string& localPath, const std::string name) {
+        std::vector<char8_t> buffer;
+        Request req(url);
+        req.initalize();
+        req.download_file<char8_t>(buffer);
+
+        std::string strbuf(buffer.begin(), buffer.end());
+
+        if (!name.empty())
+        {
+            strbuf = Utils::ModifyAppxManifest(strbuf, name);
+        }
+
+
+        std::ofstream ofs(localPath, std::ofstream::out | std::ofstream::trunc);
+        ofs.write(strbuf.c_str(), strbuf.size());
+        ofs.flush();
+    }
+
+    void UpdatePackage(const std::string& baseFolder, const std::string& instanceName) {
+        // For Windows10Universal.zip
+        std::thread([&, baseFolder]() {
+            DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip", "Windows10Universal.zip");
+            DecompressZip("Windows10Universal.zip", baseFolder + "\\Windows10Universal.exe");
+        }).detach();
+
+            // For CrashHandler.exe
+        std::thread([&, baseFolder]() {
+            DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe", "CrashHandler.exe");
+            CopyFileToDestination("CrashHandler.exe", baseFolder + "\\Assets\\CrashHandler.exe");
+        }).detach();
+
+        // For AppxManifest.xml
+        std::thread([&, baseFolder, instanceName]() {
+            WriteAppxManifest("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml", baseFolder + "\\AppxManifest.xml");
+        }).detach();
+    }
+
 }

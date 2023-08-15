@@ -11,22 +11,14 @@
 class AppLog
 {
 public:
-	AppLog()
-		: workerThread(&AppLog::processLogs, this)  // Start the worker thread.
+	static AppLog& getInstance()
 	{
-		AutoScroll = true;
-		clear();
+		static AppLog instance;
+		return instance;
 	}
 
-	~AppLog()
-	{
-		{
-			std::scoped_lock lock(mtx);
-			stopWorker = true;
-		}
-		cv.notify_all();
-		if (workerThread.joinable()) workerThread.join();  // Wait for the worker thread to finish.
-	}
+	AppLog(AppLog const&) = delete;
+	void operator=(AppLog const&) = delete;
 
 	void clear()
 	{
@@ -119,15 +111,33 @@ public:
 	}
 private:
 
+	AppLog()
+		: workerThread(&AppLog::processLogs, this)
+	{
+		AutoScroll = true;
+		clear();
+	}
+
+	~AppLog()
+	{
+		{
+			std::scoped_lock lock(mtx);
+			stopWorker = true;
+		}
+		cv.notify_all();
+		if (workerThread.joinable()) workerThread.join();
+	}
+
+
 	void processLogs()
 	{
 		while (true)
 		{
 			std::string log;
 			{
-				std::unique_lock<std::mutex> lock(mtx);
+				std::unique_lock lock(mtx);
 				cv.wait(lock, [this] { return !logsQueue.empty() || stopWorker; });
-				if (stopWorker && logsQueue.empty()) return;  // Exit the loop
+				if (stopWorker && logsQueue.empty()) return;
 				log = logsQueue.front();
 				logsQueue.pop();
 			}
@@ -167,4 +177,4 @@ private:
 	std::queue<std::string> logsQueue;
 	bool stopWorker = false;
 	std::thread workerThread;
-} applog;
+};

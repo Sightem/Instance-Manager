@@ -25,14 +25,14 @@ class Management : public Walnut::Layer
             cache.clear();
         }
 
-		for (int i = 0; i < instances.size(); i++)
+		for (int i = 0; i < instances.size(); ++i)
 		{
 			if (selection[i])
 			{
-				//use a TreeNode
+
 				if (ImGui::TreeNode(instances[i].Package.Name.c_str()))
 				{
-                    std::string path = FS::find_files(fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages", Native::get_current_username()), instances[i].Package.Name + "_")[0];
+                    std::string path = FS::FindFiles(fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages", Native::GetCurrentUsername()), instances[i].Package.Name + "_")[0];
 					DisplayFilesAndDirectories(instances[i].Package.PackageFamilyName, path, true);
 					ImGui::TreePop();
 
@@ -83,9 +83,10 @@ private:
                 {
                     if (ImGui::MenuItem("Open in explorer")) 
                     {
-                        if (!Native::open_in_explorer(info.entry.path().string()))
+                        if (!Native::OpenInExplorer(info.entry.path().string()))
                         {
-                            MessageBox(NULL, "Failed to open directory.", "Error", MB_ICONERROR);
+                            //MessageBox(NULL, "Failed to open directory.", "Error", MB_ICONERROR);
+                            AppLog::getInstance().add_log("Failed to open directory {}", info.entry.path().string());
                         }
                     }
 
@@ -114,7 +115,7 @@ private:
                 {
                     if (ImGui::MenuItem("Open in explorer"))
                     {
-                        Native::open_in_explorer(info.entry.path().string(), true);
+                        Native::OpenInExplorer(info.entry.path().string(), true);
                     }
                     // ... add more file menu items
                     ImGui::EndPopup();
@@ -126,7 +127,7 @@ private:
 
     void clone_dir(std::string packageFamilyName, const std::filesystem::path& full_src_path)
     {
-        static std::string base_src = "C:\\Users\\" + Native::get_current_username() + "\\AppData\\Local\\Packages";
+        static std::string base_src = "C:\\Users\\" + Native::GetCurrentUsername() + "\\AppData\\Local\\Packages";
         std::filesystem::path relative_path = full_src_path.lexically_relative(base_src + "\\" + packageFamilyName);
 
         // Iterate through the selected instances and clone the source to each of them
@@ -138,13 +139,13 @@ private:
 
                 if (full_src_path == dst_path)
                 {
-                    applog.add_log("Source and destination are the same. Skipping copy for {}", full_src_path.string());
+                    AppLog::getInstance().add_log("Source and destination are the same. Skipping copy for {}", full_src_path.string());
                     continue;  // Skip the copy operation for this iteration
                 }
 
-                if (!FS::copy_directory(full_src_path, dst_path)) {
+                if (!FS::CopyDirectory(full_src_path, dst_path)) {
                     std::cerr << "Failed to copy directory " << full_src_path << " to " << dst_path << '\n';
-                    applog.add_log("Failed to copy directory {} to {}", full_src_path.string(), dst_path.string());
+                    AppLog::getInstance().add_log("Failed to copy directory {} to {}", full_src_path.string(), dst_path.string());
                 }
             }
         }

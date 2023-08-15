@@ -39,22 +39,11 @@ struct RobloxInstance {
 
 namespace FS
 {
-    std::vector<std::string> enumerate_directories(const std::string& path, int depth, bool onlyNames = false);
-
-    bool copy_directory(const std::filesystem::path& src, const std::filesystem::path& dst);
-
-    std::string replace_pattern_in_file(const std::filesystem::path& filePath, const std::string& pattern, const std::string& replacement);
-
-    std::string replace_pattern_in_content(const std::vector<char8_t>& contentVec, const std::string& pattern, const std::string& replacement);
-
-
-    bool remove_path(const std::filesystem::path& path_to_delete);
-
-    bool decompress_zip(const std::string& zipPath, const std::string& destination);
-
-    bool decompress_zip_to_file(const std::string& zipPath, const std::string& destination);
-
-    std::vector<std::string> find_files(const std::string& path, const std::string& substring);
+    bool CopyDirectory(const std::filesystem::path& src, const std::filesystem::path& dst);
+    bool RemovePath(const std::filesystem::path& path_to_delete);
+    bool DecompressZip(const std::string& zipPath, const std::string& destination);
+    bool DecompressZipToFile(const std::string& zipPath, const std::string& destination);
+    std::vector<std::string> FindFiles(const std::string& path, const std::string& substring);
 }
 
 namespace ui
@@ -66,75 +55,48 @@ namespace ui
     };
 
     bool InputTextWithHint(const char* label, const char* hint, std::string* my_str, ImGuiInputTextFlags flags = 0);
-
     bool ConditionalButton(const char* label, bool condition, ButtonStyle style);
-
     bool GreenButton(const char* label);
-
     bool RedButton(const char* label);
-
     void HelpMarker(const char* desc);
-
 }
 
 namespace Native
 {
-    bool enable_developer_mode();
-
-    std::string run_powershell_command(const std::string& command);
-
-    std::string get_current_username();
-
-    std::string get_user_experience();
-
-    std::string get_user_sid();
-
-    std::string get_hex_datetime();
-
-    void write_protocol_keys(const std::string& progId, const std::string& protocol, const std::string& progHash);
-
-    std::map<std::string, std::string> get_progid_names();
-
-    PVOID get_peb_address(HANDLE ProcessHandle);
-
+    std::string RunPowershellCommand(const std::string& command);
+    std::string GetCurrentUsername();
+    std::string GetUserExperience();
+    std::string GetUserSID();
+    std::string GetHexDatetime();
+    void WriteProtoclKeys(const std::string& progId, const std::string& protocol, const std::string& progHash);
+    std::map<std::string, std::string> GetProgIDNames();
+    PVOID GetPebAddress(HANDLE ProcessHandle);
     std::string get_commandline_arguments(DWORD pid);
-
-    bool open_in_explorer(const std::string& path, bool isFile = false) noexcept;
-
-    void minimize_window(DWORD pid);
-
-    bool set_process_affinity(DWORD processID, DWORD requestedCores);
-
-    bool is_readable_mem(const MEMORY_BASIC_INFORMATION& mbi);
+    bool OpenInExplorer(const std::string& path, bool isFile = false);
+    bool SetProcessAffinity(DWORD processID, DWORD requestedCores);
+    bool IsReadableMemory(const MEMORY_BASIC_INFORMATION& mbi);
 
     typedef std::string(*ExtractFunction)(const unsigned char*, size_t);
-    std::string search_entire_process_memory(HANDLE pHandle, const unsigned char* pattern, size_t patternSize, ExtractFunction extractFunction);
+    std::string SearchEntireProcessMemory(HANDLE pHandle, const unsigned char* pattern, size_t patternSize, ExtractFunction extractFunction);
 }
 
 namespace StringUtils
 {
     bool contains_only(const std::string& s, char c);
-
-    std::string replace_all(std::string str, const std::string& from, const std::string& to);
-
-    bool copy_to_clipboard(const std::string& data);
-
-    std::string get_after_last_occurrence(const std::string& source, char ch);
-
-    std::string base64_encode(const unsigned char* buffer, size_t length);
-
-    std::string wstr_to_str(const std::wstring& wstr);
+    bool CopyToClipboard(const std::string& data);
+    std::string Base64Encodde(const unsigned char* buffer, size_t length);
+    std::string WStrToStr(const std::wstring& wstr);
 }
 
 namespace Roblox
 {
-    void nuke_instance(const std::string name, const std::string path);
-    std::vector<RobloxPackage> process_roblox_packages();
-    std::vector<RobloxInstance> wrap_packages();
-    void launch_roblox(std::string AppID, const std::string& placeid);
-    void launch_roblox(std::string AppID, const std::string& placeid, const std::string& linkcode);
+    void NukeInstane(const std::string name, const std::string path);
+    std::vector<RobloxPackage> ProcessRobloxPackages();
+    std::vector<RobloxInstance> WrapPackages();
+    void LaunchRoblox(std::string AppID, const std::string& placeid);
+    void LaunchRoblox(std::string AppID, const std::string& placeid, const std::string& linkcode);
 
-    std::set<DWORD> get_roblox_instances();
+    std::set<DWORD> GetRobloxInstances();
 
     enum ModifyXMLError {
         Success = 0,
@@ -143,26 +105,29 @@ namespace Roblox
         SaveError
     };
 
-    ModifyXMLError modify_settings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue);
-    std::string get_csrf(std::string cookie);
-    std::string enter_code(std::string code, std::string cookie);
-    std::string validate_code(std::string code, std::string cookie);
-    std::string extract_code(const unsigned char* data, size_t dataSize);
-    std::string find_code_value(HANDLE pHandle, const std::string& name);
+    ModifyXMLError ModifySettings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue);
+    std::string GetCSRF(std::string cookie);
+    std::string EnterCode(std::string code, std::string cookie);
+    std::string ValidateCode(std::string code, std::string cookie);
+    std::string ExtractCode(const unsigned char* data, size_t dataSize);
+    std::string FindCodeValue(HANDLE pHandle, const std::string& name);
+    std::vector<RobloxInstance> GetNewInstances(const std::vector<RobloxInstance>& old_instances);
 }
 
 namespace Utils
 {
-    long get_shift_right(long value, int count);
-    int to_int32(const unsigned char* bytes, int offset);
-
-    std::vector<unsigned char> parse_pattern(const std::string& pattern);
-
-    const unsigned char* to_bytes(int64_t value);
-    const unsigned char* take_bytes(const unsigned char* input, int count);
-    std::string get_hash(const std::string& baseInfo);
-
-    bool save_to_file(const std::string& file_path, const std::vector<char8_t>& buffer);
-    uintptr_t boyer_moore_horspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize);
-
+    long GetShiftRight(long value, int count);
+    int ToInt32(const unsigned char* bytes, int offset);
+    std::vector<unsigned char> ParsePattern(const std::string& pattern);
+    const unsigned char* ToBytes(int64_t value);
+    const unsigned char* TakeBytes(const unsigned char* input, int count);
+    std::string GetHash(const std::string& baseInfo);
+    std::string ModifyAppxManifest(std::string inputXML, std::string name);
+    bool SaveToFile(const std::string& file_path, const std::vector<char8_t>& buffer);
+    uintptr_t BoyerMooreHorspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize);
+    void DownloadAndSave(const std::string& url, const std::string& localFileName);
+    void DecompressZip(const std::string& zipFile, const std::string& destination);
+    void CopyFileToDestination(const std::string& source, const std::string& destination);
+    void WriteAppxManifest(const std::string& url, const std::string& localPath, const std::string name = "");
+    void UpdatePackage(const std::string& baseFolder, const std::string& instanceName = "");
 }

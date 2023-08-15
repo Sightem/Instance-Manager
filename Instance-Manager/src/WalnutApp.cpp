@@ -21,7 +21,7 @@
 #include "ThreadManager.hpp"
 #include "config.hpp"
 
-std::vector<RobloxInstance> instances = Roblox::wrap_packages();
+std::vector<RobloxInstance> instances = Roblox::WrapPackages();
 std::vector<bool> selection;
 
 class InstanceManager : public Walnut::Layer
@@ -32,7 +32,6 @@ public:
 		ImGui::Begin("Instance Manager", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNav);
 
 		static auto& config = Config::getInstance().get();
-		static bool dont_ask_me_next_time = false;
 		static int item_current_idx = 0;
 		static int lastSelectedIndex = -1;
 		if (selection.size() != instances.size())
@@ -158,9 +157,15 @@ public:
 
 						RenderSettings();
 
+						if (std::count(selection.begin(), selection.end(), true) > 1 || instances[n].ProcessID == 0)
+							ImGui::BeginDisabled();
+
 						RenderProcessControl();
 
 						RenderFastLogin(n);
+
+						if (std::count(selection.begin(), selection.end(), true) > 1 || instances[n].ProcessID == 0)
+							ImGui::EndDisabled();
 
 						ImGui::Separator();
 
@@ -169,68 +174,13 @@ public:
 
 						ImGui::SameLine();
 
-						RenderRemoveInstances(selection, &dont_ask_me_next_time);
-
-						ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-						ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
-						if (ImGui::BeginPopupModal("Delete?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-						{
-							int num_selected = std::count(selection.begin(), selection.end(), true);
-
-							if (num_selected == 1) {
-								ImGui::Text("This will delete all the files related to the selected instance and unregister it.\nThis operation cannot be undone!\n\n");
-							}
-							else {
-								ImGui::Text("This will delete all the files related to the %d selected instances and unregister them.\nThis operation cannot be undone!\n\n", num_selected);
-							}
-							ImGui::Separator();
-
-							ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-							ImGui::Checkbox("Don't ask me next time", &dont_ask_me_next_time);
-							ImGui::PopStyleVar();
-
-							if (ImGui::Button("OK", ImVec2(523.0f / 2.0f, 0))) {
-								applog.add_log("Deleting selected instances...");
-
-								std::set<int> selected_indices;
-								for (int i = 0; i < selection.size(); ++i) {
-									if (selection[i]) {
-										selected_indices.insert(i);
-									}
-								}
-								DeleteInstances(selected_indices);
-
-								ImGui::CloseCurrentPopup();
-							}
-
-							ImGui::SetItemDefaultFocus();
-							ImGui::SameLine();
-							if (ImGui::Button("Cancel", ImVec2(523.0f / 2.0f, 0))) { ImGui::CloseCurrentPopup(); }
-							ImGui::EndPopup();
-						}
-						ImGui::EndPopup();
-
+						RenderRemoveInstances();
 					}
 				}
 			}
 			ImGui::EndListBox();
 		}
-
-		static std::string instance_name_buf;
-
-		ImGui::PushItemWidth(ImGui::GetWindowWidth() - 315.0f);
-
-		ui::InputTextWithHint("##NameStr", "Input the instance name here...", &instance_name_buf);
-
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip(R"(Disallowed characters: <>:\"/\\|?*\t\n\r )");
-
-		ImGui::PopItemWidth();
-
-		ImGui::SameLine();
-
-		RenderCreateInstance(instance_name_buf);
+		RenderCreateInstance();
 
 		ImGui::SameLine();
 
@@ -238,7 +188,7 @@ public:
 
 		ImGui::Separator();
 
-		applog.draw("Log");
+		AppLog::getInstance().draw("Log");
 
 		ImGui::End();
 	}
@@ -263,7 +213,14 @@ private:
 			{
 				ForEachSelectedInstance([&](int idx)
 					{
-						Native::set_process_affinity(instances[idx].ProcessID, cpucores);
+						if (!Native::SetProcessAffinity(instances[idx].ProcessID, cpucores))
+						{
+							AppLog::getInstance().add_log("Failed to set affinity for instance {}", instances[idx].Package.Username);
+						}
+						else
+						{
+							AppLog::getInstance().add_log("Set affinity for instance {}", instances[idx].Package.Username);
+						}
 					}
 				);
 			}
@@ -274,10 +231,6 @@ private:
 
 	void RenderFastLogin(int item_current_idx)
 	{
-		//if selections are more than 1, or if the selected instance is not running, disable the button
-		if (std::count(selection.begin(), selection.end(), true) > 1 || instances[item_current_idx].ProcessID == 0)
-			ImGui::BeginDisabled();
-
 		static bool showCodeValuePopup = false;
 
 		if (ImGui::TreeNode("Fast Login"))
@@ -309,7 +262,7 @@ private:
 				if (pid != 0)
 				{
 					HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-					std::string codeValue = Roblox::find_code_value(pHandle, instances[item_current_idx].Package.Username);
+					std::string codeValue = Roblox::FindCodeValue(pHandle, instances[item_current_idx].Package.Username);
 					if (codeValue != "")
 					{
 						strcpy(quicklogincode, codeValue.c_str());
@@ -343,8 +296,8 @@ private:
 
 			if (ImGui::Button("Login", ImVec2(323.0f, 0.0f)))
 			{
-				Roblox::enter_code(quicklogincode, cookie);
-				Roblox::validate_code(quicklogincode, cookie);
+				Roblox::EnterCode(quicklogincode, cookie);
+				Roblox::ValidateCode(quicklogincode, cookie);
 			}
 
 			if (strlen(cookie) == 0 || strlen(quicklogincode) == 0)
@@ -353,9 +306,6 @@ private:
 
 			ImGui::TreePop();
 		}
-
-		if (std::count(selection.begin(), selection.end(), true) > 1 || instances[item_current_idx].ProcessID == 0)
-			ImGui::EndDisabled();
 	}
 
 	void RenderLaunch(std::string placeid, std::string linkcode, double launchdelay)
@@ -368,10 +318,10 @@ private:
 		{
 			ForEachSelectedInstance([this, placeid, linkcode, launchdelay](int idx) {
 				auto callback = [idx, this]() {
-					applog.add_log("Launched {}", instances[idx].Package.Username);
+					AppLog::getInstance().add_log("Launched {}", instances[idx].Package.Username);
 				};
 
-				applog.add_log("Launching {}...", instances[idx].Package.Username);
+				AppLog::getInstance().add_log("Launching {}...", instances[idx].Package.Username);
 
 				queued_thread_manager.submit_task("delay" + std::to_string(idx), [launchdelay]() {
 					std::this_thread::sleep_for(std::chrono::milliseconds((int)(launchdelay * 1000)));
@@ -382,14 +332,14 @@ private:
 					std::string appid = instances[idx].Package.AppID;
 
 					if (linkcode.empty())
-						Roblox::launch_roblox(instances[idx].Package.AppID, placeid);
+						Roblox::LaunchRoblox(instances[idx].Package.AppID, placeid);
 					else
-						Roblox::launch_roblox(instances[idx].Package.AppID, placeid, linkcode);
+						Roblox::LaunchRoblox(instances[idx].Package.AppID, placeid, linkcode);
 
 					//try 5 times to find the roblox process
 					for (int i = 0; i < 5; i++)
 					{
-						auto pids = Roblox::get_roblox_instances();
+						auto pids = Roblox::GetRobloxInstances();
 						for (auto pid : pids)
 						{
 							std::string command_line = Native::get_commandline_arguments(pid);
@@ -401,7 +351,7 @@ private:
 						}
 						std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 					}
-					}, callback);
+				}, callback);
 			});
 			
 		}
@@ -436,10 +386,10 @@ private:
 
 			if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
 				ForEachSelectedInstance([this](int idx) {
-					std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::get_current_username(), instances[idx].Package.PackageFamilyName);
+					std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::GetCurrentUsername(), instances[idx].Package.PackageFamilyName);
 
 					if (std::filesystem::exists(path))
-						Roblox::modify_settings(path, graphicsquality, newmastervolume, newsavedquality);
+						Roblox::ModifySettings(path, graphicsquality, newmastervolume, newsavedquality);
 				});
 			}
 			ImGui::TreePop();
@@ -468,7 +418,7 @@ private:
 
 	void DeleteInstances(const std::set<int>& indices)
 	{
-		applog.add_log("Deleting instances...");
+		AppLog::getInstance().add_log("Deleting instances...");
 
 		// It's safer to erase items from a vector in reverse order
 		auto sorted_indices = indices;
@@ -478,242 +428,183 @@ private:
 			thread_manager.submit_task("deleteInstance", [idx, this]() {
 				try
 				{
-					Roblox::nuke_instance(instances[idx].Package.Name, instances[idx].Package.InstallLocation);
+					Roblox::NukeInstane(instances[idx].Package.Name, instances[idx].Package.InstallLocation);
 					instances.erase(instances.begin() + idx);
 				}
 				catch (const std::exception& e)
 				{
-					applog.add_log("Failed to delete instance {}: {}", instances[idx].Package.Name, e.what());
+					AppLog::getInstance().add_log("Failed to delete instance {}: {}", instances[idx].Package.Name, e.what());
 				}
 
 			}, [&]() {
-				applog.add_log("Instance Deleted");
+				AppLog::getInstance().add_log("Instance Deleted");
 			});
 		}
 	}
 
-	void RenderRemoveInstances(const std::vector<bool>& selection, bool* dont_ask_me_next_time)
+	void RenderRemoveInstances()
 	{
+		static bool dont_ask_me_next_time = false;
+
 		if (!AnyInstanceSelected())
 			return;
 
 		if (ui::ConditionalButton("Remove Selected Instances", true, ui::ButtonStyle::Red))
 		{
-			if (!(*dont_ask_me_next_time))
+			if (!dont_ask_me_next_time)
 			{
 				ImGui::OpenPopup("Delete?");
 			}
 			else
 			{
+				ForEachSelectedInstance([this](int idx) {
+					thread_manager.submit_task("deleteInstance", [idx, this]() {
+						try
+						{
+							Roblox::NukeInstane(instances[idx].Package.Name, instances[idx].Package.InstallLocation);
+							instances.erase(instances.begin() + idx);
+						}
+						catch (const std::exception& e)
+						{
+							AppLog::getInstance().add_log("Failed to delete instance {}: {}", instances[idx].Package.Name, e.what());
+						}
+						}, [&]() {
+							AppLog::getInstance().add_log("Instance Deleted");
+						});
+					});
+			}
+		}
+
+
+		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+		if (ImGui::BeginPopupModal("Delete?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+		{
+			int num_selected = std::count(selection.begin(), selection.end(), true);
+
+			if (num_selected == 1) {
+				ImGui::Text("This will delete all the files related to the selected instance and unregister it.\nThis operation cannot be undone!\n\n");
+			}
+			else {
+				ImGui::Text("This will delete all the files related to the %d selected instances and unregister them.\nThis operation cannot be undone!\n\n", num_selected);
+			}
+			ImGui::Separator();
+
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+			ImGui::Checkbox("Don't ask me next time", &dont_ask_me_next_time);
+			ImGui::PopStyleVar();
+
+			if (ImGui::Button("OK", ImVec2(523.0f / 2.0f, 0))) {
+				AppLog::getInstance().add_log("Deleting selected instances...");
+
 				std::set<int> selected_indices;
-				for (int i = 0; i < selection.size(); ++i)
-				{
-					if (selection[i])
-					{
+				for (int i = 0; i < selection.size(); ++i) {
+					if (selection[i]) {
 						selected_indices.insert(i);
 					}
 				}
 				DeleteInstances(selected_indices);
+
+				ImGui::CloseCurrentPopup();
 			}
+
+			ImGui::SetItemDefaultFocus();
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel", ImVec2(523.0f / 2.0f, 0))) { ImGui::CloseCurrentPopup(); }
+			ImGui::EndPopup();
 		}
+		ImGui::EndPopup();
 	}
 
-	std::vector<RobloxInstance> get_new_instances(const std::vector<RobloxInstance>& old_instances) {
-		std::vector<RobloxInstance> new_instances = Roblox::wrap_packages();
-		std::vector<RobloxInstance> result;
-
-		// Check if an instance in new_instances is not present in old_instances
-		for (const auto& new_instance : new_instances) {
-			bool found = false;
-			for (const auto& old_instance : old_instances) {
-				if (new_instance.Package.AppID == old_instance.Package.AppID) {
-					found = true;
-					break;
-				}
-			}
-			if (!found) {
-				result.push_back(new_instance);
-			}
-		}
-
-		return result;
-	}
-
-
-	void RenderCreateInstance(std::string instance_name_buf)
+	void RenderCreateInstance()
 	{
+		static std::string instance_name_buf;
+
+		ImGui::PushItemWidth(ImGui::GetWindowWidth() - 315.0f);
+
+		ui::InputTextWithHint("##NameStr", "Input the instance name here...", &instance_name_buf);
+
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip(R"(Disallowed characters: <>:\"/\\|?*\t\n\r )");
+
+		ImGui::PopItemWidth();
+
+		ImGui::SameLine();
+
 		if (ui::ConditionalButton("Create instance", !(instance_name_buf.empty() || StringUtils::contains_only(instance_name_buf, '\0')), ui::ButtonStyle::Green))
 		{
-			applog.add_log("Creating instance...");
+			AppLog::getInstance().add_log("Creating instance...");
 
 			std::vector<RobloxInstance> existing_instances = instances;
 
 			auto completionCallback = [&]() {
-				applog.add_log("Instance created");
-				std::vector<RobloxInstance> new_instances = get_new_instances(instances);
+				AppLog::getInstance().add_log("Instance created");
+				std::vector<RobloxInstance> new_instances = Roblox::GetNewInstances(instances);
 				instances.insert(instances.end(), new_instances.begin(), new_instances.end());
 				selection.resize(instances.size(), false);
 			};
 
-			thread_manager.submit_task("createInstance", [instance_name_buf]() {
-				std::string buf = FS::replace_pattern_in_file("Template\\AppxManifest.xml", "{INSTANCENAME}", instance_name_buf);
+			thread_manager.submit_task("createInstance", []() {
+				std::ifstream file("Template\\AppxManifest.xml", std::ios::in | std::ios::binary | std::ios::ate);
+				std::string inputXML;
+				inputXML.resize(file.tellg());
+				file.seekg(0, std::ios::beg);
+				file.read(&inputXML[0], inputXML.size());
+				file.close();
 
-				std::filesystem::create_directory("instances\\" + instance_name_buf);
+				std::string buf = Utils::ModifyAppxManifest(inputXML, instance_name_buf);
 
-				FS::copy_directory("Template", "instances\\" + instance_name_buf);
+				std::string path = fmt::format("instances\\{}", instance_name_buf);
 
-				std::ofstream ofs("instances\\" + instance_name_buf + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
+				std::filesystem::create_directory(path);
+
+				FS::CopyDirectory("Template", path);
+
+				std::ofstream ofs(path + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
 				ofs << buf;
+				ofs.flush();
 				ofs.close();
 
-				std::string abs_path = std::filesystem::absolute("instances\\" + instance_name_buf + "\\AppxManifest.xml").string();
+				std::string abs_path = std::filesystem::absolute(path + "\\AppxManifest.xml").string();
 				std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
- 				Native::run_powershell_command(cmd);
+ 				Native::RunPowershellCommand(cmd);
 			}, completionCallback);
 		}
 	}
 
-	//refactor this later
-	void RenderUpdateTemplate()
-	{
+	void RenderUpdateTemplate() {
 		auto callback = [&]() {
-			applog.add_log("Template updated");
+			AppLog::getInstance().add_log("Template updated");
 		};
-
-		if (ImGui::Button("Update Template"))
-		{
-			applog.add_log("Updating template...");
-
+		if (ImGui::Button("Update Template")) {
+			AppLog::getInstance().add_log("Updating template...");
 			if (!std::filesystem::exists("Template")) {
 				std::filesystem::create_directories("Template\\Assets");
 			}
-
-			queued_thread_manager.submit_task("updatetemplate", [this]() {
-
-				std::thread([this]() {
-					std::vector<char8_t> buffer;
-					Request win10req("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip");
-					win10req.initalize();
-					win10req.download_file<char8_t>(buffer);
-
-					Utils::save_to_file("Windows10Universal.zip", buffer);
-
-					std::string pathTow10uni = "Template\\Windows10Universal.exe";
-
-					if (std::filesystem::exists(pathTow10uni)) {
-						std::filesystem::remove(pathTow10uni);
-					}
-
-					FS::decompress_zip("Windows10Universal.zip", "Template");
-				}).detach();
-
-				std::thread([this]() {
-					std::vector<char8_t> buffer;
-					Request crashreq("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe");
-					crashreq.initalize();
-					crashreq.download_file<char8_t>(buffer);
-
-					Utils::save_to_file("CrashHandler.exe", buffer);
-
-					std::string pathToCrashHandler = "Template\\Assets\\CrashHandler.exe";
-
-					if (std::filesystem::exists(pathToCrashHandler)) {
-						std::filesystem::remove(pathToCrashHandler);
-					}
-
-					std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
-				}).detach();
-
-				std::thread([this]() {
-					std::vector<char8_t> buffer;
-
-					Request appxml("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml");
-					appxml.initalize();
-					appxml.download_file<char8_t>(buffer);
-
-					std::ofstream ofs("Template\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
-					ofs.write((char*)buffer.data(), buffer.size());
-					ofs.flush();
-				}).detach();
-
+			queued_thread_manager.submit_task("updatetemplate", [&]() {
+				Utils::UpdatePackage("Template");
 			}, callback);
 		}
 	}
 
-	void RenderUpdateInstance()
-	{
+
+	void RenderUpdateInstance() {
 		if (!AnyInstanceSelected())
 			return;
-
-
-		if (ImGui::Button("Update Instance"))
-		{
+		if (ImGui::Button("Update Instance")) {
 			ForEachSelectedInstance([this](int idx) {
 				auto callback = [idx, this]() {
 					std::string abs_path = std::filesystem::absolute(instances[idx].Package.InstallLocation + "\\AppxManifest.xml").string();
 					std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
-					Native::run_powershell_command(cmd);
-
-					applog.add_log("Update Done");
+					Native::RunPowershellCommand(cmd);
+					AppLog::getInstance().add_log("Update Done");
 				};
-
-
 				queued_thread_manager.submit_task(fmt::format("updateinstances{}", idx), [idx, this]() {
-					applog.add_log("Updating {}...", instances[idx].Package.Name);
-					std::thread([idx, this]() {
-						std::vector<char8_t> buffer;
-						Request win10req("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip");
-						win10req.initalize();
-						win10req.download_file<char8_t>(buffer);
-
-						Utils::save_to_file("Windows10Universal.zip", buffer);
-
-						std::string pathTow10uni = instances[idx].Package.InstallLocation + "\\Windows10Universal.exe";
-
-						if (std::filesystem::exists(pathTow10uni)) {
-							std::filesystem::remove(pathTow10uni);
-						}
-
-						FS::decompress_zip("Windows10Universal.zip", instances[idx].Package.InstallLocation);
-						}).detach();
-
-					std::thread([idx, this]() {
-						std::vector<char8_t> buffer;
-						Request crashreq("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe");
-						crashreq.initalize();
-						crashreq.download_file<char8_t>(buffer);
-
-						Utils::save_to_file("CrashHandler.exe", buffer);
-
-						std::string pathToCrashHandler = instances[idx].Package.InstallLocation + "\\Assets\\CrashHandler.exe";
-
-						if (std::filesystem::exists(pathToCrashHandler)) {
-							std::filesystem::remove(pathToCrashHandler);
-						}
-
-						std::filesystem::copy_file("CrashHandler.exe", pathToCrashHandler);
-						}).detach();
-
-					std::thread([idx, this]() {
-						std::vector<char8_t> buffer;
-
-						Request appxml("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml");
-						appxml.initalize();
-						appxml.download_file<char8_t>(buffer);
-
-						std::string buf = FS::replace_pattern_in_content(buffer, "{INSTANCENAME}", instances[idx].Package.Username);
-
-						std::ofstream ofs(instances[idx].Package.InstallLocation + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
-						ofs << buf;
-						ofs.flush();
-						ofs.close();
-						}).detach();
-
+					AppLog::getInstance().add_log("Updating {}...", instances[idx].Package.Name);
+					Utils::UpdatePackage(instances[idx].Package.InstallLocation, instances[idx].Package.Username);
 					}, callback);
-			});
-
-
-			//close the popup
+				});
 			ImGui::CloseCurrentPopup();
 		}
 	}
@@ -752,13 +643,6 @@ Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
 {
 	// Create the instances directory if it doesn't exist
 	std::filesystem::create_directory("instances");
-
-	if (!Native::enable_developer_mode())
-	{
-		std::cout << "Failed to enable developer mode" << std::endl;
-		//system("pause");
-		//g_ApplicationRunning = false;
-	}
 
 	//if config.json doesn't exist, create it
 	if (!std::filesystem::exists("config.json"))
