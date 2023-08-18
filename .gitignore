@@ -17,3 +17,5 @@ instances/
 !vendor/bin
 /Instance-Manager/AppxManifest.xml
 /Instance-Manager/config.json
+/Instance-Manager/screenshot.png
+/Instance-Manager/images

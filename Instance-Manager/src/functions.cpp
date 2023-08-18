@@ -13,6 +13,9 @@
 
 #define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 namespace FS
 {
     bool CopyDirectory(const std::filesystem::path& src, const std::filesystem::path& dst)
@@ -697,7 +700,6 @@ namespace Native
 
         return "";
     }
-
 }
 
 namespace StringUtils
@@ -898,7 +900,6 @@ namespace Roblox
         std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
 
         Native::WriteProtocolKeys(AppID, protocol, Utils::GetHash(lower));
-        //call SHChangeNotify
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 
         std::string cmd = fmt::format("start roblox://placeId={}^&linkCode={}/", placeid, linkcode);
@@ -1097,7 +1098,7 @@ namespace Utils
         while (end != std::string::npos) {
             std::string byteString = patternString.substr(start, end - start);
             if (byteString == "??") {
-                pattern.push_back('?'); // Using 0xFF to represent wildcards
+                pattern.push_back('?');
             }
             else {
                 unsigned long byteValue = std::strtol(byteString.c_str(), nullptr, 16);
@@ -1110,7 +1111,7 @@ namespace Utils
         // Handle the last token in the string (after the last space)
         std::string byteString = patternString.substr(start, end);
         if (byteString == "??") {
-            pattern.push_back('?'); // Using 0xFF to represent wildcards
+            pattern.push_back('?');
         }
         else {
             unsigned long byteValue = std::strtol(byteString.c_str(), nullptr, 16);
@@ -1460,6 +1461,51 @@ namespace Utils
         std::thread([&, baseFolder, instanceName]() {
             WriteAppxManifest("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml", baseFolder + "\\AppxManifest.xml");
         }).detach();
+    }
+
+    bool SaveScreenshotAsPng(const char* filename)
+    {
+        HDC screenDC = GetDC(NULL);
+        HDC memoryDC = CreateCompatibleDC(screenDC);
+
+        int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+        int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+        HBITMAP bitmap = CreateCompatibleBitmap(screenDC, screenWidth, screenHeight);
+        HBITMAP oldBitmap = (HBITMAP)SelectObject(memoryDC, bitmap);
+
+        BitBlt(memoryDC, 0, 0, screenWidth, screenHeight, screenDC, 0, 0, SRCCOPY);
+
+        BITMAPINFOHEADER bi;
+        bi.biSize = sizeof(BITMAPINFOHEADER);
+        bi.biWidth = screenWidth;
+        bi.biHeight = -screenHeight; // Top-down orientation
+        bi.biPlanes = 1;
+        bi.biBitCount = 24;
+        bi.biCompression = BI_RGB;
+        bi.biSizeImage = 0;
+        bi.biXPelsPerMeter = 0;
+        bi.biYPelsPerMeter = 0;
+        bi.biClrUsed = 0;
+        bi.biClrImportant = 0;
+
+        DWORD dwBmpSize = ((screenWidth * bi.biBitCount + 31) / 32) * 4 * screenHeight;
+        std::vector<BYTE> lpBitmapBits(dwBmpSize);
+        GetDIBits(screenDC, bitmap, 0, screenHeight, lpBitmapBits.data(), (BITMAPINFO*)&bi, DIB_RGB_COLORS);
+
+        // Convert BGR to RGB
+        for (size_t i = 0; i < dwBmpSize; i += 3)
+        {
+            std::swap(lpBitmapBits[i], lpBitmapBits[i + 2]);
+        }
+
+        SelectObject(memoryDC, oldBitmap);
+        DeleteObject(bitmap);
+        DeleteDC(memoryDC);
+        ReleaseDC(NULL, screenDC);
+
+        int result = stbi_write_png(filename, screenWidth, screenHeight, 3, lpBitmapBits.data(), screenWidth * 3);
+        return result != 0;
     }
 
 }

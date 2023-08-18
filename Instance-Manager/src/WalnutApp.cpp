@@ -13,6 +13,9 @@
 #include <fmt/format.h>
 #include <fmt/core.h>
 #include <fmt/chrono.h>
+#include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 
 #include "functions.h"
 #include "request.hpp"
@@ -20,6 +23,7 @@
 #include "Management.hpp"
 #include "ThreadManager.hpp"
 #include "config.hpp"
+#include "mousecontroller.hpp"
 
 std::vector<RobloxInstance> instances = Roblox::WrapPackages();
 std::vector<bool> selection;
@@ -58,7 +62,7 @@ public:
 						selection[n] = false;
 					}
 				}
-			}
+			} 
 
 			for (int n = 0; n < instances.size(); ++n)
 			{
@@ -97,6 +101,18 @@ public:
 						}
 
 						lastSelectedIndex = n;
+					}
+
+					// This fixes an annoying bug where right clicking an instance right after launching it would make the program crash
+					if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
+					{
+						// If no instances or only one instance is selected, or the right clicked instance isn't part of the selection
+						if (std::count(selection.begin(), selection.end(), true) <= 1 || !selection[n])
+						{
+							std::fill(selection.begin(), selection.end(), false); // Clear other selections
+							selection[n] = true; // Select the current instance
+							lastSelectedIndex = n; // Update the last selected index
+						}
 					}
 
 					if (instances[n].ProcessID != 0)
@@ -164,6 +180,8 @@ public:
 
 						RenderFastLogin(n);
 
+						RenderAutoLogin(n);
+
 						if (std::count(selection.begin(), selection.end(), true) > 1 || instances[n].ProcessID == 0)
 							ImGui::EndDisabled();
 
@@ -197,6 +215,7 @@ private:
 	std::vector<std::future<void>> instance_update_button_futures;
 	ThreadManager thread_manager;
 	QueuedThreadManager queued_thread_manager;
+	MouseController mouse_controller;
 	
 	void RenderProcessControl()
 	{
@@ -227,6 +246,115 @@ private:
 
 			ImGui::TreePop();
 		};
+	}
+
+	void RenderAutoLogin(int n)
+	{
+		if (ImGui::TreeNode("Auto Login"))
+		{
+			static char cookie[3000] = "";
+
+			ImGui::InputTextWithHint("##cookie", "Cookie", cookie, IM_ARRAYSIZE(cookie));
+
+			if (strlen(cookie) == 0)
+				ImGui::BeginDisabled();
+
+			if (ImGui::Button("Login", ImVec2(320.0f, 0.0f)))
+			{
+				std::thread([this, n]() {
+
+					DWORD pid = 0;
+
+					for (int i = 0; i < selection.size(); ++i)
+					{
+						if (selection[i])
+						{
+							pid = instances[i].ProcessID;
+							break;
+						}
+					}
+
+					if (pid != 0)
+					{
+						Utils::SaveScreenshotAsPng("screenshot.png");
+
+						cv::Mat screen = cv::imread("screenshot.png");
+						cv::Mat templateIMG = cv::imread("images\\login.png");
+
+						cv::Mat result;
+						cv::matchTemplate(screen, templateIMG, result, cv::TM_CCOEFF_NORMED);
+
+						double minVal, maxVal;
+						cv::Point minLoc, maxLoc;
+						cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
+
+						int x_mid;
+						int y_mid;
+						if (maxVal > 0.80) {
+							x_mid = maxLoc.x + (templateIMG.cols / 2);
+							y_mid = maxLoc.y + (templateIMG.rows / 2);
+							AppLog::getInstance().add_log("Login button found at location: ({}, {})", x_mid, y_mid);
+
+							mouse_controller.MoveMouse(x_mid, y_mid);
+							mouse_controller.ClickMouse();
+						}
+						else {
+							AppLog::getInstance().add_log("Login button not found");
+							return;
+						}
+
+						std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+						/*
+						Utils::SaveScreenshotAsPng("screenshot.png");
+
+						screen = cv::imread("screenshot.png");
+						templateIMG = cv::imread("anotherdev.png");
+
+						cv::matchTemplate(screen, templateIMG, result, cv::TM_CCOEFF_NORMED);
+
+						cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
+
+						if (maxVal > 0.80) {
+							int x_mid = maxLoc.x + (templateIMG.cols / 2);
+							int y_mid = maxLoc.y + (templateIMG.rows / 2);
+							AppLog::getInstance().add_log("Login with another device button found at location: ({}, {})", x_mid, y_mid);
+
+							mouse_controller.MoveMouse(x_mid, y_mid);
+							mouse_controller.ClickMouse();
+
+						}
+						else {
+							AppLog::getInstance().add_log("Login with another device button not found");
+						}
+						*/
+
+						mouse_controller.MoveMouse(x_mid, y_mid + 150);
+						mouse_controller.ClickMouse();
+
+						HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+						std::string codeValue = Roblox::FindCodeValue(pHandle, instances[n].Package.Username);
+
+						if (codeValue == "") {
+							AppLog::getInstance().add_log("Code value not found");
+						}
+						else {
+							AppLog::getInstance().add_log("Code value found: {}", codeValue);
+						}
+
+						Roblox::EnterCode(codeValue, cookie);
+						Roblox::ValidateCode(codeValue, cookie);
+
+					}
+				}).detach();
+			}
+
+
+			if (strlen(cookie) == 0)
+				ImGui::EndDisabled();
+
+			ImGui::TreePop();
+		}
 	}
 
 	void RenderFastLogin(int item_current_idx)
@@ -294,7 +422,7 @@ private:
 			if (strlen(cookie) == 0 || strlen(quicklogincode) == 0)
 				ImGui::BeginDisabled();
 
-			if (ImGui::Button("Login", ImVec2(323.0f, 0.0f)))
+			if (ImGui::Button("Login", ImVec2(320.0f, 0.0f)))
 			{
 				Roblox::EnterCode(quicklogincode, cookie);
 				Roblox::ValidateCode(quicklogincode, cookie);

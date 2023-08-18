@@ -68,7 +68,7 @@ namespace Native
     std::string GetUserExperience();
     std::string GetUserSID();
     std::string GetHexDatetime();
-    void WriteProtoclKeys(const std::string& progId, const std::string& protocol, const std::string& progHash);
+    void WriteProtocolKeys(const std::string& progId, const std::string& protocol, const std::string& progHash);
     std::map<std::string, std::string> GetProgIDNames();
     PVOID GetPebAddress(HANDLE ProcessHandle);
     std::string get_commandline_arguments(DWORD pid);
@@ -130,4 +130,6 @@ namespace Utils
     void CopyFileToDestination(const std::string& source, const std::string& destination);
     void WriteAppxManifest(const std::string& url, const std::string& localPath, const std::string name = "");
     void UpdatePackage(const std::string& baseFolder, const std::string& instanceName = "");
+    bool SaveScreenshotAsPng(const char* filename);
+
 }
