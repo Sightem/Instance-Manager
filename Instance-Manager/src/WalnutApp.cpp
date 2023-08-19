@@ -248,6 +248,56 @@ private:
 		};
 	}
 
+	std::pair<int, int> MatchTemplate(const std::string& template_path, double threshold) {
+		Utils::SaveScreenshotAsPng("screenshot.png");
+
+		cv::Mat screen = cv::imread("screenshot.png");
+		cv::Mat templateIMG = cv::imread(template_path);
+
+		cv::Mat result;
+		cv::matchTemplate(screen, templateIMG, result, cv::TM_CCOEFF_NORMED);
+
+		double minVal, maxVal;
+		cv::Point minLoc, maxLoc;
+		cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
+
+		if (maxVal > threshold) {
+			int x_mid = maxLoc.x + (templateIMG.cols / 2);
+			int y_mid = maxLoc.y + (templateIMG.rows / 2);
+			AppLog::getInstance().add_log("Button found from template {} at location: ({}, {})", template_path.c_str(), x_mid, y_mid);
+			return { x_mid, y_mid };
+		}
+		else {
+			return { -1, -1 };
+		}
+	}
+
+	void PerformMouseAction(int x_mid, int y_mid, std::optional<int> y_offset = std::nullopt) {
+		mouse_controller.MoveMouse(x_mid, y_mid);
+		mouse_controller.ClickMouse();
+
+		if (y_offset) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+			mouse_controller.MoveMouse(x_mid, y_mid + *y_offset);
+			mouse_controller.ClickMouse();
+		}
+	}
+
+	void HandleCodeValidation(DWORD pid, const std::string& username, const char* cookie) {
+		HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+		std::string codeValue = Roblox::FindCodeValue(pHandle, username);
+
+		if (codeValue == "") {
+			AppLog::getInstance().add_log("Code value not found");
+		}
+		else {
+			AppLog::getInstance().add_log("Code value found: {}", codeValue);
+			Roblox::EnterCode(codeValue, cookie);
+			Roblox::ValidateCode(codeValue, cookie);
+		}
+	}
+
 	void RenderAutoLogin(int n)
 	{
 		if (ImGui::TreeNode("Auto Login"))
@@ -273,82 +323,29 @@ private:
 							break;
 						}
 					}
+					
+					int x_mid, y_mid;
+					std::tie(x_mid, y_mid) = MatchTemplate("images\\login.png", 0.80);
 
-					if (pid != 0)
-					{
-						Utils::SaveScreenshotAsPng("screenshot.png");
-
-						cv::Mat screen = cv::imread("screenshot.png");
-						cv::Mat templateIMG = cv::imread("images\\login.png");
-
-						cv::Mat result;
-						cv::matchTemplate(screen, templateIMG, result, cv::TM_CCOEFF_NORMED);
-
-						double minVal, maxVal;
-						cv::Point minLoc, maxLoc;
-						cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
-
-						int x_mid;
-						int y_mid;
-						if (maxVal > 0.80) {
-							x_mid = maxLoc.x + (templateIMG.cols / 2);
-							y_mid = maxLoc.y + (templateIMG.rows / 2);
-							AppLog::getInstance().add_log("Login button found at location: ({}, {})", x_mid, y_mid);
-
-							mouse_controller.MoveMouse(x_mid, y_mid);
-							mouse_controller.ClickMouse();
-						}
-						else {
-							AppLog::getInstance().add_log("Login button not found");
-							return;
-						}
+					if (x_mid != -1 && y_mid != -1) {
+						PerformMouseAction(x_mid, y_mid, 150);
 
 						std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
-						/*
-						Utils::SaveScreenshotAsPng("screenshot.png");
+						HandleCodeValidation(pid, instances[n].Package.Username, cookie);
+					}
+					else {
+						std::tie(x_mid, y_mid) = MatchTemplate("images\\anotherdev.png", 0.80);
+						if (x_mid != -1 && y_mid != -1) {
+							PerformMouseAction(x_mid, y_mid);
 
-						screen = cv::imread("screenshot.png");
-						templateIMG = cv::imread("anotherdev.png");
+							std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
-						cv::matchTemplate(screen, templateIMG, result, cv::TM_CCOEFF_NORMED);
-
-						cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
-
-						if (maxVal > 0.80) {
-							int x_mid = maxLoc.x + (templateIMG.cols / 2);
-							int y_mid = maxLoc.y + (templateIMG.rows / 2);
-							AppLog::getInstance().add_log("Login with another device button found at location: ({}, {})", x_mid, y_mid);
-
-							mouse_controller.MoveMouse(x_mid, y_mid);
-							mouse_controller.ClickMouse();
-
+							HandleCodeValidation(pid, instances[n].Package.Username, cookie);
 						}
-						else {
-							AppLog::getInstance().add_log("Login with another device button not found");
-						}
-						*/
-
-						mouse_controller.MoveMouse(x_mid, y_mid + 150);
-						mouse_controller.ClickMouse();
-
-						HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-						std::string codeValue = Roblox::FindCodeValue(pHandle, instances[n].Package.Username);
-
-						if (codeValue == "") {
-							AppLog::getInstance().add_log("Code value not found");
-						}
-						else {
-							AppLog::getInstance().add_log("Code value found: {}", codeValue);
-						}
-
-						Roblox::EnterCode(codeValue, cookie);
-						Roblox::ValidateCode(codeValue, cookie);
-
 					}
 				}).detach();
 			}
-
 
 			if (strlen(cookie) == 0)
 				ImGui::EndDisabled();

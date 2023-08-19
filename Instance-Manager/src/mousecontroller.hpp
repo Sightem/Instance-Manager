@@ -2,6 +2,13 @@
 #include <vector>
 #include <stdexcept>
 
+float GetDPIScalingFactor() {
+    HDC screen = GetDC(NULL);
+    float dpiScaling = static_cast<float>(GetDeviceCaps(screen, LOGPIXELSX)) / 96.0f;
+    ReleaseDC(NULL, screen);
+    return dpiScaling;
+}
+
 class MouseController {
 public:
     MouseController() {
@@ -22,16 +29,21 @@ public:
     }
 
     BOOLEAN MoveMouse(int x, int y) {
+        float dpiScaling = GetDPIScalingFactor();
+        x = static_cast<int>(x * dpiScaling);
+        y = static_cast<int>(y * dpiScaling);
+
         INPUT input = {};
         input.type = INPUT_MOUSE;
         input.mi.mouseData = 0;
         input.mi.time = 0;
-        input.mi.dx = x * (65536 / GetSystemMetrics(SM_CXSCREEN));
-        input.mi.dy = y * (65536 / GetSystemMetrics(SM_CYSCREEN));
+        input.mi.dx = x * (65536 / GetSystemMetrics(SM_CXVIRTUALSCREEN));
+        input.mi.dy = y * (65536 / GetSystemMetrics(SM_CYVIRTUALSCREEN));
         input.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_ABSOLUTE;
 
         return SpoofedSendInput(1, &input, sizeof(input));
     }
+
 
     BOOLEAN ClickMouse() {
         INPUT input[2] = {};

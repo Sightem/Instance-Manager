@@ -1468,13 +1468,17 @@ namespace Utils
         HDC screenDC = GetDC(NULL);
         HDC memoryDC = CreateCompatibleDC(screenDC);
 
-        int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-        int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+        // Get the dimensions of the entire virtual screen (all monitors)
+        int screenX = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        int screenY = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        int screenWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        int screenHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
         HBITMAP bitmap = CreateCompatibleBitmap(screenDC, screenWidth, screenHeight);
         HBITMAP oldBitmap = (HBITMAP)SelectObject(memoryDC, bitmap);
 
-        BitBlt(memoryDC, 0, 0, screenWidth, screenHeight, screenDC, 0, 0, SRCCOPY);
+        // Copy the entire virtual screen
+        BitBlt(memoryDC, 0, 0, screenWidth, screenHeight, screenDC, screenX, screenY, SRCCOPY);
 
         BITMAPINFOHEADER bi;
         bi.biSize = sizeof(BITMAPINFOHEADER);
