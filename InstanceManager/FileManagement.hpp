@@ -1,51 +1,53 @@
 #pragma once
 #include "imgui.h"
-#include "Walnut/UI/UI.h"
-#include "Walnut/Application.h"
+#include "base.hpp"
+#include "AppLog.hpp"
 
 #include "functions.h"
 
 namespace fs = std::filesystem;
 
-class Management : public Walnut::Layer
+class Management
 {
-	public:
-	Management(std::vector<RobloxInstance>& instances, std::vector<bool>& selection)
-		: instances(instances), selection(selection)
-	{}
+public:
+    Management(std::vector<RobloxInstance>& instances, std::vector<bool>& selection)
+        : instances(instances), selection(selection)
+    {}
 
-	~Management() = default;
+    ~Management() = default;
 
-	virtual void OnUIRender() override
-	{
-		ImGui::Begin("File Management");
+    void draw(const char* title, bool* p_open = NULL)
+    {
+        if (!ImGui::Begin(title, p_open))
+        {
+            ImGui::End();
+            return;
+        }
 
         if (ImGui::Button("Refresh"))
         {
             cache.clear();
         }
 
-		for (int i = 0; i < instances.size(); ++i)
-		{
-			if (selection[i])
-			{
-
-				if (ImGui::TreeNode(instances[i].Package.Name.c_str()))
-				{
+        for (int i = 0; i < instances.size(); ++i)
+        {
+            if (selection[i])
+            {
+                if (ImGui::TreeNode(instances[i].Package.Name.c_str()))
+                {
                     std::string path = FS::FindFiles(fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages", Native::GetCurrentUsername()), instances[i].Package.Name + "_")[0];
-					DisplayFilesAndDirectories(instances[i].Package.PackageFamilyName, path, true);
-					ImGui::TreePop();
+                    DisplayFilesAndDirectories(instances[i].Package.PackageFamilyName, path, true);
+                    ImGui::TreePop();
+                }
+            }
+        }
 
-				}
-			}
-		}
-
-		ImGui::End();
-	}
+        ImGui::End();
+    }
 
 private:
-	std::vector<RobloxInstance>& instances;
-	std::vector<bool>& selection;
+    std::vector<RobloxInstance>& instances;
+    std::vector<bool>& selection;
 
     struct DirectoryEntryInfo {
         fs::directory_entry entry;
@@ -81,7 +83,7 @@ private:
                 ImGui::PushID(info.uniqueId.c_str());
                 if (ImGui::BeginPopupContextItem())
                 {
-                    if (ImGui::MenuItem("Open in explorer")) 
+                    if (ImGui::MenuItem("Open in explorer"))
                     {
                         if (!Native::OpenInExplorer(info.entry.path().string()))
                         {

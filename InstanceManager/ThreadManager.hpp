@@ -4,6 +4,7 @@
 #include <mutex>
 #include <vector>
 #include <shared_mutex>
+#include <queue>
 
 class ThreadManager {
 public:
@@ -29,7 +30,7 @@ public:
                 if (tasks_map[id].total == tasks_map[id].completed && callbacks_map.find(id) != callbacks_map.end()) {
                     callbacks_map[id]();  // Call the callback
                 }
-            })
+                })
         );
     }
 

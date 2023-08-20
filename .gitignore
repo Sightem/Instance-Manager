@@ -19,3 +19,9 @@ instances/
 /Instance-Manager/config.json
 /Instance-Manager/screenshot.png
 /Instance-Manager/images
+/InstanceManager/images
+/InstanceManager/Template
+/InstanceManager/x64/Debug
+/x64/Debug
+/InstanceManager/screenshot.png
+/InstanceManager/config.json

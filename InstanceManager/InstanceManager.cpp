@@ -1,9 +1,4 @@
-#include "Walnut/Application.h"
-#include "Walnut/EntryPoint.h"
-
-#include "Walnut/Image.h"
-#include "Walnut/UI/UI.h"
-
+#include "base.hpp"
 #include <filesystem>
 #include <vector>
 #include <string>
@@ -20,19 +15,48 @@
 #include "functions.h"
 #include "request.hpp"
 #include "AppLog.hpp"
-#include "Management.hpp"
 #include "ThreadManager.hpp"
 #include "config.hpp"
 #include "mousecontroller.hpp"
+#include "FileManagement.hpp"
 
 std::vector<RobloxInstance> instances = Roblox::WrapPackages();
 std::vector<bool> selection;
 
-class InstanceManager : public Walnut::Layer
+class App : public AppBase<App>
 {
 public:
-	virtual void OnUIRender() override
-	{
+    App() {};
+    virtual ~App() = default;
+
+    // Anything that needs to be called once OUTSIDE of the main application loop
+    void StartUp()
+    {
+		// Create the instances directory if it doesn't exist
+		std::filesystem::create_directory("instances");
+
+		//if config.json doesn't exist, create it
+		if (!std::filesystem::exists("config.json"))
+		{
+			std::ofstream ofs("config.json", std::ofstream::out | std::ofstream::trunc);
+			nlohmann::json j;
+			j["lastPlaceID"] = "";
+			j["lastVip"] = "";
+
+			//save to file
+			ofs << j.dump(4);
+
+			ofs.flush();
+			ofs.close();
+		}
+
+		//load config.json
+		Config::getInstance().load("config.json");
+    }
+
+    // Anything that needs to be called cyclically INSIDE of the main application loop
+    void Update()
+    {
 		ImGui::Begin("Instance Manager", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNav);
 
 		static auto& config = Config::getInstance().get();
@@ -62,7 +86,7 @@ public:
 						selection[n] = false;
 					}
 				}
-			} 
+			}
 
 			for (int n = 0; n < instances.size(); ++n)
 			{
@@ -86,7 +110,7 @@ public:
 							int end = std::max(lastSelectedIndex, n);
 							for (int i = start; i <= end; ++i)
 							{
-								selection[i] = true; 
+								selection[i] = true;
 							}
 						}
 						else if (!ImGui::GetIO().KeyCtrl)
@@ -140,7 +164,7 @@ public:
 						ImGui::Text(selectedNames.c_str());
 
 						ImGui::Separator();
-						
+
 						if (ImGui::TreeNode("Launch control"))
 						{
 							static std::string placeid = config["lastPlaceID"];
@@ -164,9 +188,9 @@ public:
 							ImGui::SameLine();
 
 							RenderLaunch(placeid, linkcode, launchdelay);
-							
+
 							ImGui::SameLine();
-							
+
 							RenderTerminate();
 							ImGui::TreePop();
 						};
@@ -209,14 +233,50 @@ public:
 		AppLog::getInstance().draw("Log");
 
 		ImGui::End();
-	}
+
+		management.draw("File Management");
+
+    }
+
+    // The callbacks are updated and called BEFORE the Update loop is entered
+    // It can be assumed that inside the Update loop all callbacks have already been processed
+    static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+    {
+        // For Dear ImGui to work it is necessary to queue if the mouse signal is already processed by Dear ImGui
+        // Only if the mouse is not already captured it should be used here.
+        ImGuiIO& io = ImGui::GetIO();
+        if (!io.WantCaptureMouse)
+        {
+        }
+    }
+
+    static void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
+    {
+        // For Dear ImGui to work it is necessary to queue if the mouse signal is already processed by Dear ImGui
+        // Only if the mouse is not already captured it should be used here.
+        ImGuiIO& io = ImGui::GetIO();
+        if (!io.WantCaptureMouse)
+        {
+        }
+    }
+
+    static void KeyCallback(GLFWwindow* window, int key, int scancode, int actions, int mods)
+    {
+        // For Dear ImGui to work it is necessary to queue if the keyboard signal is already processed by Dear ImGui
+        // Only if the keyboard is not already captured it should be used here.
+        ImGuiIO& io = ImGui::GetIO();
+        if (!io.WantCaptureKeyboard)
+        {
+        }
+    }
 
 private:
 	std::vector<std::future<void>> instance_update_button_futures;
 	ThreadManager thread_manager;
 	QueuedThreadManager queued_thread_manager;
 	MouseController mouse_controller;
-	
+	Management management = Management(instances, selection);
+
 	void RenderProcessControl()
 	{
 		if (ImGui::TreeNode("Process Control"))
@@ -323,7 +383,7 @@ private:
 							break;
 						}
 					}
-					
+
 					int x_mid, y_mid;
 					std::tie(x_mid, y_mid) = MatchTemplate("images\\login.png", 0.80);
 
@@ -344,7 +404,7 @@ private:
 							HandleCodeValidation(pid, instances[n].Package.Username, cookie);
 						}
 					}
-				}).detach();
+					}).detach();
 			}
 
 			if (strlen(cookie) == 0)
@@ -476,9 +536,9 @@ private:
 						}
 						std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 					}
-				}, callback);
-			});
-			
+					}, callback);
+				});
+
 		}
 
 		if (placeid != Config::getInstance().get()["lastPlaceID"] || linkcode != Config::getInstance().get()["lastVip"])
@@ -515,7 +575,7 @@ private:
 
 					if (std::filesystem::exists(path))
 						Roblox::ModifySettings(path, graphicsquality, newmastervolume, newsavedquality);
-				});
+					});
 			}
 			ImGui::TreePop();
 		}
@@ -537,7 +597,7 @@ private:
 
 					instances[idx].ProcessID = 0;
 				}
-			});
+				});
 		}
 	}
 
@@ -561,9 +621,9 @@ private:
 					AppLog::getInstance().add_log("Failed to delete instance {}: {}", instances[idx].Package.Name, e.what());
 				}
 
-			}, [&]() {
-				AppLog::getInstance().add_log("Instance Deleted");
-			});
+				}, [&]() {
+					AppLog::getInstance().add_log("Instance Deleted");
+				});
 		}
 	}
 
@@ -693,8 +753,8 @@ private:
 
 				std::string abs_path = std::filesystem::absolute(path + "\\AppxManifest.xml").string();
 				std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
- 				Native::RunPowershellCommand(cmd);
-			}, completionCallback);
+				Native::RunPowershellCommand(cmd);
+				}, completionCallback);
 		}
 	}
 
@@ -709,7 +769,7 @@ private:
 			}
 			queued_thread_manager.submit_task("updatetemplate", [&]() {
 				Utils::UpdatePackage("Template");
-			}, callback);
+				}, callback);
 		}
 	}
 
@@ -762,40 +822,12 @@ private:
 		}
 	}
 
+
 };
 
-Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
+int main(int, char**)
 {
-	// Create the instances directory if it doesn't exist
-	std::filesystem::create_directory("instances");
-
-	//if config.json doesn't exist, create it
-	if (!std::filesystem::exists("config.json"))
-	{
-		std::ofstream ofs("config.json", std::ofstream::out | std::ofstream::trunc);
-		nlohmann::json j;
-		j["lastPlaceID"] = "";
-		j["lastVip"] = "";
-		
-		//save to file
-		ofs << j.dump(4);
-
-		ofs.flush();
-		ofs.close();
-	}
-
-	//load config.json
-	Config::getInstance().load("config.json");
-
-
-	Walnut::ApplicationSpecification spec;
-	spec.Name = "Roblox UWP Instance Manager";
-	spec.CustomTitlebar = false;
-
-	Walnut::Application* app = new Walnut::Application(spec);
-	std::shared_ptr<InstanceManager> instanceManager = std::make_shared<InstanceManager>();
-	std::shared_ptr<Management> management = std::make_shared<Management>(instances, selection);
-	app->PushLayer(instanceManager);
-	app->PushLayer(management);
-	return app;
+    App app;
+    app.Run();
+    return 0;
 }

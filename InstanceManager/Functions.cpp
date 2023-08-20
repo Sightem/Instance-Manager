@@ -299,12 +299,12 @@ namespace ui
         ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(82, 21, 21, 255));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(92, 25, 25, 255));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(123, 33, 33, 255));
-        
+
         bool pressed = ImGui::Button(label);
 
-		ImGui::PopStyleColor(3);
+        ImGui::PopStyleColor(3);
 
-		return pressed;
+        return pressed;
     }
 
     void HelpMarker(const char* desc)
@@ -855,17 +855,17 @@ namespace Roblox
         std::vector<RobloxInstance> instances;
 
         for (const auto& package : packages) {
-			RobloxInstance instance;
-			instance.Package.Name = package.Name;
-			instance.Package.Username = package.Username;
-			instance.Package.PackageID = package.PackageID;
-			instance.Package.AppID = package.AppID;
-			instance.Package.InstallLocation = package.InstallLocation;
-			instance.Package.PackageFamilyName = package.PackageFamilyName;
-			instance.Package.Version = package.Version;
+            RobloxInstance instance;
+            instance.Package.Name = package.Name;
+            instance.Package.Username = package.Username;
+            instance.Package.PackageID = package.PackageID;
+            instance.Package.AppID = package.AppID;
+            instance.Package.InstallLocation = package.InstallLocation;
+            instance.Package.PackageFamilyName = package.PackageFamilyName;
+            instance.Package.Version = package.Version;
             instance.ProcessID = 0;
-			instances.push_back(instance);
-		}
+            instances.push_back(instance);
+        }
 
         return instances;
     }
@@ -1316,7 +1316,7 @@ namespace Utils
         return true;
     }
 
-    uintptr_t BoyerMooreHorspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize) 
+    uintptr_t BoyerMooreHorspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize)
     {
         size_t maxShift = signatureSize;
         size_t maxIndex = signatureSize - 1;
@@ -1449,18 +1449,18 @@ namespace Utils
         std::thread([&, baseFolder]() {
             DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip", "Windows10Universal.zip");
             DecompressZip("Windows10Universal.zip", baseFolder + "\\Windows10Universal.exe");
-        }).detach();
+            }).detach();
 
             // For CrashHandler.exe
-        std::thread([&, baseFolder]() {
-            DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe", "CrashHandler.exe");
-            CopyFileToDestination("CrashHandler.exe", baseFolder + "\\Assets\\CrashHandler.exe");
-        }).detach();
+            std::thread([&, baseFolder]() {
+                DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe", "CrashHandler.exe");
+                CopyFileToDestination("CrashHandler.exe", baseFolder + "\\Assets\\CrashHandler.exe");
+                }).detach();
 
-        // For AppxManifest.xml
-        std::thread([&, baseFolder, instanceName]() {
-            WriteAppxManifest("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml", baseFolder + "\\AppxManifest.xml");
-        }).detach();
+                // For AppxManifest.xml
+                std::thread([&, baseFolder, instanceName]() {
+                    WriteAppxManifest("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml", baseFolder + "\\AppxManifest.xml");
+                    }).detach();
     }
 
     bool SaveScreenshotAsPng(const char* filename)
