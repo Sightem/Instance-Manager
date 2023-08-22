@@ -23,34 +23,6 @@ static void ErrorCallback(int error, const char* description)
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
 
-namespace Colors
-{
-    namespace Theme
-    {
-        constexpr auto accent = IM_COL32(236, 158, 36, 255);
-        constexpr auto highlight = IM_COL32(39, 185, 242, 255);
-        constexpr auto niceBlue = IM_COL32(83, 232, 254, 255);
-        constexpr auto compliment = IM_COL32(78, 151, 166, 255);
-        constexpr auto background = IM_COL32(36, 36, 36, 255);
-        constexpr auto backgroundDark = IM_COL32(26, 26, 26, 255);
-        constexpr auto titlebar = IM_COL32(21, 21, 21, 255);
-        constexpr auto propertyField = IM_COL32(15, 15, 15, 255);
-        constexpr auto text = IM_COL32(192, 192, 192, 255);
-        constexpr auto textBrighter = IM_COL32(210, 210, 210, 255);
-        constexpr auto textDarker = IM_COL32(128, 128, 128, 255);
-        constexpr auto textError = IM_COL32(230, 51, 51, 255);
-        constexpr auto muted = IM_COL32(77, 77, 77, 255);
-        constexpr auto groupHeader = IM_COL32(47, 47, 47, 255);
-        constexpr auto selection = IM_COL32(237, 192, 119, 255);
-        constexpr auto selectionMuted = IM_COL32(237, 201, 142, 23);
-        constexpr auto backgroundPopup = IM_COL32(50, 50, 50, 255);
-        constexpr auto validPrefab = IM_COL32(82, 179, 222, 255);
-        constexpr auto invalidPrefab = IM_COL32(222, 43, 43, 255);
-        constexpr auto missingMesh = IM_COL32(230, 102, 76, 255);
-        constexpr auto meshNotSet = IM_COL32(250, 101, 23, 255);
-    }
-}
-
 template <typename Derived>
 class AppBase
 {
@@ -85,91 +57,87 @@ public:
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
         io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
 
-        auto& style = ImGui::GetStyle();
-        auto& colors = ImGui::GetStyle().Colors;
+        ImVec4* colors = ImGui::GetStyle().Colors;
+        colors[ImGuiCol_Text] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 255, 255, 255));
+        colors[ImGuiCol_TextDisabled] = ImGui::ColorConvertU32ToFloat4(IM_COL32(128, 128, 128, 255));
+        colors[ImGuiCol_WindowBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(26, 26, 26, 255));
+        colors[ImGuiCol_ChildBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 0));
+        colors[ImGuiCol_PopupBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(48, 48, 48, 235));
+        colors[ImGuiCol_Border] = ImGui::ColorConvertU32ToFloat4(IM_COL32(48, 48, 48, 74));
+        colors[ImGuiCol_BorderShadow] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 61));
+        colors[ImGuiCol_FrameBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(13, 13, 13, 138));
+        colors[ImGuiCol_FrameBgHovered] = ImGui::ColorConvertU32ToFloat4(IM_COL32(48, 48, 48, 138));
+        colors[ImGuiCol_FrameBgActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(51, 56, 59, 255));
+        colors[ImGuiCol_TitleBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 255));
+        colors[ImGuiCol_TitleBgActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(15, 15, 15, 255));
+        colors[ImGuiCol_TitleBgCollapsed] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 255));
+        colors[ImGuiCol_MenuBarBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(36, 36, 36, 255));
+        colors[ImGuiCol_ScrollbarBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(13, 13, 13, 138));
+        colors[ImGuiCol_ScrollbarGrab] = ImGui::ColorConvertU32ToFloat4(IM_COL32(87, 87, 87, 138));
+        colors[ImGuiCol_ScrollbarGrabHovered] = ImGui::ColorConvertU32ToFloat4(IM_COL32(102, 102, 102, 138));
+        colors[ImGuiCol_ScrollbarGrabActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(143, 143, 143, 138));
+        colors[ImGuiCol_CheckMark] = ImGui::ColorConvertU32ToFloat4(IM_COL32(84, 171, 219, 255));
+        colors[ImGuiCol_SliderGrab] = ImGui::ColorConvertU32ToFloat4(IM_COL32(87, 87, 87, 138));
+        colors[ImGuiCol_SliderGrabActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(143, 143, 143, 138));
+        colors[ImGuiCol_Button] = ImGui::ColorConvertU32ToFloat4(IM_COL32(13, 13, 13, 138));
+        colors[ImGuiCol_ButtonHovered] = ImGui::ColorConvertU32ToFloat4(IM_COL32(48, 48, 48, 138));
+        colors[ImGuiCol_ButtonActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(51, 56, 59, 255));
+        colors[ImGuiCol_Header] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 133));
+        colors[ImGuiCol_HeaderHovered] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 92));
+        colors[ImGuiCol_HeaderActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(51, 56, 59, 84));
+        colors[ImGuiCol_Separator] = ImGui::ColorConvertU32ToFloat4(IM_COL32(71, 71, 71, 74));
+        colors[ImGuiCol_SeparatorHovered] = ImGui::ColorConvertU32ToFloat4(IM_COL32(112, 112, 112, 74));
+        colors[ImGuiCol_SeparatorActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(102, 112, 120, 255));
+        colors[ImGuiCol_ResizeGrip] = ImGui::ColorConvertU32ToFloat4(IM_COL32(71, 71, 71, 74));
+        colors[ImGuiCol_ResizeGripHovered] = ImGui::ColorConvertU32ToFloat4(IM_COL32(112, 112, 112, 74));
+        colors[ImGuiCol_ResizeGripActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(102, 112, 120, 255));
+        colors[ImGuiCol_Tab] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 133));
+        colors[ImGuiCol_TabHovered] = ImGui::ColorConvertU32ToFloat4(IM_COL32(36, 36, 36, 255));
+        colors[ImGuiCol_TabActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(51, 51, 51, 92));
+        colors[ImGuiCol_TabUnfocused] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 133));
+        colors[ImGuiCol_TabUnfocusedActive] = ImGui::ColorConvertU32ToFloat4(IM_COL32(36, 36, 36, 255));
+        colors[ImGuiCol_DockingPreview] = ImGui::ColorConvertU32ToFloat4(IM_COL32(84, 171, 219, 255));
+        colors[ImGuiCol_DockingEmptyBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(196, 196, 196, 255));
+        colors[ImGuiCol_PlotLines] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 0, 0, 255));
+        colors[ImGuiCol_PlotLinesHovered] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 0, 0, 255));
+        colors[ImGuiCol_PlotHistogram] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 0, 0, 255));
+        colors[ImGuiCol_PlotHistogramHovered] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 0, 0, 255));
+        colors[ImGuiCol_TableHeaderBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 133));
+        colors[ImGuiCol_TableBorderStrong] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 133));
+        colors[ImGuiCol_TableBorderLight] = ImGui::ColorConvertU32ToFloat4(IM_COL32(71, 71, 71, 74));
+        colors[ImGuiCol_TableRowBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 0, 0, 0));
+        colors[ImGuiCol_TableRowBgAlt] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 255, 255, 15));
+        colors[ImGuiCol_TextSelectedBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(51, 56, 59, 255));
+        colors[ImGuiCol_DragDropTarget] = ImGui::ColorConvertU32ToFloat4(IM_COL32(84, 171, 219, 255));
+        colors[ImGuiCol_NavHighlight] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 0, 0, 255));
+        colors[ImGuiCol_NavWindowingHighlight] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 0, 0, 178));
+        colors[ImGuiCol_NavWindowingDimBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 0, 0, 51));
+        colors[ImGuiCol_ModalWindowDimBg] = ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 0, 0, 89));
 
-        //========================================================
-        /// Colours
-
-        // Headers
-        colors[ImGuiCol_Header] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::groupHeader);
-        colors[ImGuiCol_HeaderHovered] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::groupHeader);
-        colors[ImGuiCol_HeaderActive] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::groupHeader);
-
-        // Buttons
-        colors[ImGuiCol_Button] = ImColor(56, 56, 56, 200);
-        colors[ImGuiCol_ButtonHovered] = ImColor(70, 70, 70, 255);
-        colors[ImGuiCol_ButtonActive] = ImColor(56, 56, 56, 150);
-
-        // Frame BG
-        colors[ImGuiCol_FrameBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::propertyField);
-        colors[ImGuiCol_FrameBgHovered] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::propertyField);
-        colors[ImGuiCol_FrameBgActive] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::propertyField);
-
-        // Tabs
-        colors[ImGuiCol_Tab] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
-        colors[ImGuiCol_TabHovered] = ImColor(255, 225, 135, 30);
-        colors[ImGuiCol_TabActive] = ImColor(255, 225, 135, 60);
-        colors[ImGuiCol_TabUnfocused] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
-        colors[ImGuiCol_TabUnfocusedActive] = colors[ImGuiCol_TabHovered];
-
-        // Title
-        colors[ImGuiCol_TitleBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
-        colors[ImGuiCol_TitleBgActive] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
-        colors[ImGuiCol_TitleBgCollapsed] = ImVec4{ 0.15f, 0.1505f, 0.151f, 1.0f };
-
-        // Resize Grip
-        colors[ImGuiCol_ResizeGrip] = ImVec4(0.91f, 0.91f, 0.91f, 0.25f);
-        colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.81f, 0.81f, 0.81f, 0.67f);
-        colors[ImGuiCol_ResizeGripActive] = ImVec4(0.46f, 0.46f, 0.46f, 0.95f);
-
-        // Scrollbar
-        colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.53f);
-        colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.31f, 0.31f, 0.31f, 1.0f);
-        colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.41f, 0.41f, 1.0f);
-        colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.51f, 0.51f, 0.51f, 1.0f);
-
-        // Check Mark
-        colors[ImGuiCol_CheckMark] = ImColor(200, 200, 200, 255);
-
-        // Slider
-        colors[ImGuiCol_SliderGrab] = ImVec4(0.51f, 0.51f, 0.51f, 0.7f);
-        colors[ImGuiCol_SliderGrabActive] = ImVec4(0.66f, 0.66f, 0.66f, 1.0f);
-
-        // Text
-        colors[ImGuiCol_Text] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::text);
-
-        // Checkbox
-        colors[ImGuiCol_CheckMark] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::text);
-
-        // Separator
-        colors[ImGuiCol_Separator] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::backgroundDark);
-        colors[ImGuiCol_SeparatorActive] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::highlight);
-        colors[ImGuiCol_SeparatorHovered] = ImColor(39, 185, 242, 150);
-
-        // Window Background
-        colors[ImGuiCol_WindowBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
-        colors[ImGuiCol_ChildBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::background);
-        colors[ImGuiCol_PopupBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::backgroundPopup);
-        colors[ImGuiCol_Border] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::backgroundDark);
-
-        // Tables
-        colors[ImGuiCol_TableHeaderBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::groupHeader);
-        colors[ImGuiCol_TableBorderLight] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::backgroundDark);
-
-        // Menubar
-        colors[ImGuiCol_MenuBarBg] = ImVec4{ 0.0f, 0.0f, 0.0f, 0.0f };
-
-        //========================================================
-
+        ImGuiStyle& style = ImGui::GetStyle();
         style.WindowPadding = ImVec2(10.0f, 10.0f);
         style.FramePadding = ImVec2(8.0f, 6.0f);
+        style.CellPadding = ImVec2(6.00f, 6.00f);
         style.ItemSpacing = ImVec2(6.0f, 6.0f);
+        style.ItemInnerSpacing = ImVec2(6.00f, 6.00f);
+        style.TouchExtraPadding = ImVec2(0.00f, 0.00f);
+        style.IndentSpacing = 25;
+        style.ScrollbarSize = 15;
+        style.GrabMinSize = 10;
+        style.WindowBorderSize = 1;
+        style.ChildBorderSize = 1;
+        style.PopupBorderSize = 1;
+        style.FrameBorderSize = 1;
+        style.TabBorderSize = 1;
+        style.WindowRounding = 7;
         style.ChildRounding = 6.0f;
         style.PopupRounding = 6.0f;
         style.FrameRounding = 6.0f;
-        style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
-        style.FrameBorderSize = 0.5f;
+        style.ScrollbarRounding = 9;
+        style.GrabRounding = 3;
+        style.LogSliderDeadzone = 4;
+        style.TabRounding = 2;
+
 
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {

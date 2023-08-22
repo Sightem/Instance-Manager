@@ -8,30 +8,52 @@
 
 class ThreadManager {
 public:
-    void submit_task(const std::string& id, std::function<void()> task, std::function<void()> callback = nullptr) {
-        {
-            std::unique_lock lock(smtx);
-            if (tasks_map.find(id) == tasks_map.end()) {
-                tasks_map[id] = TaskInfo();
-                if (callback) {
-                    callbacks_map[id] = callback;
-                }
-            }
-            tasks_map[id].total += 1;
-        }
-
-        futures.push_back(
-            std::async(std::launch::async, [this, id, task]() {
-                task();
-
-                // Update the completed tasks count and check if we should call the callback
+    void submit_task(const std::string& id,
+        std::function<void(const std::atomic<bool>&)> task,
+        std::function<void()> callback = nullptr) {
+            {
                 std::unique_lock lock(smtx);
-                tasks_map[id].completed += 1;
-                if (tasks_map[id].total == tasks_map[id].completed && callbacks_map.find(id) != callbacks_map.end()) {
-                    callbacks_map[id]();  // Call the callback
+                if (tasks_map.find(id) == tasks_map.end()) {
+                    tasks_map[id] = TaskInfo();
+                    if (callback) {
+                        callbacks_map[id] = callback;
+                    }
+                    termination_flags[id] = std::make_shared<std::atomic<bool>>(false);
                 }
-                })
-        );
+                tasks_map[id].total += 1;
+            }
+
+            auto flag = termination_flags[id];
+            futures.push_back(
+                std::async(std::launch::async, [this, id, task, flag]() {
+                    task(*flag);
+
+                    // Update the completed tasks count and check if we should call the callback
+                    std::unique_lock lock(smtx);
+                    tasks_map[id].completed += 1;
+                    if (tasks_map[id].total == tasks_map[id].completed && callbacks_map.find(id) != callbacks_map.end()) {
+                        callbacks_map[id]();  // Call the callback
+                    }
+                    })
+            );
+    }
+
+    void submit_task(const std::string& id,
+        std::function<void()> simpleTask,
+        std::function<void()> callback = nullptr) {
+        // Wrap the simpleTask to match the signature of the tasks that accept terminateFlag
+        auto wrappedTask = [simpleTask](const std::atomic<bool>&) {
+            simpleTask();
+        };
+        submit_task(id, wrappedTask, callback);
+    }
+
+
+    void terminate_task(const std::string& id) {
+        std::shared_lock lock(smtx);
+        if (termination_flags.find(id) != termination_flags.end()) {
+            *termination_flags[id] = true;
+        }
     }
 
     int get_completed_count(const std::string& id) const {
@@ -51,7 +73,6 @@ public:
     }
 
 private:
-    // Structure to represent task info
     struct TaskInfo {
         int total = 0;
         int completed = 0;
@@ -59,6 +80,7 @@ private:
 
     std::unordered_map<std::string, TaskInfo> tasks_map;
     std::unordered_map<std::string, std::function<void()>> callbacks_map;
+    std::unordered_map<std::string, std::shared_ptr<std::atomic<bool>>> termination_flags;
     std::vector<std::future<void>> futures;
     mutable std::shared_mutex smtx;
 };

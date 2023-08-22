@@ -1,8 +1,9 @@
-#include "base.hpp"
+#include "Base.hpp"
 #include <filesystem>
 #include <vector>
 #include <string>
 #include <iostream>
+#include <ranges>
 #include <future>
 #include <thread>
 #include <fmt/format.h>
@@ -12,22 +13,25 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "functions.h"
+#include "Functions.h"
 #include "request.hpp"
 #include "AppLog.hpp"
 #include "ThreadManager.hpp"
-#include "config.hpp"
-#include "mousecontroller.hpp"
+#include "Config.hpp"
+#include "MouseController.hpp"
 #include "FileManagement.hpp"
+#include "InstanceControl.h"
 
-std::vector<RobloxInstance> instances = Roblox::WrapPackages();
-std::vector<bool> selection;
+std::vector<std::string> g_InstanceNames = g_InstanceControl.GetInstanceNames();
+std::vector<bool> g_Selection;
 
-class App : public AppBase<App>
+MouseController& g_MouseController = MouseController::GetInstance();
+
+class InstanceManager : public AppBase<InstanceManager>
 {
 public:
-    App() {};
-    virtual ~App() = default;
+    InstanceManager() {};
+    virtual ~InstanceManager() = default;
 
     // Anything that needs to be called once OUTSIDE of the main application loop
     void StartUp()
@@ -60,48 +64,73 @@ public:
 		ImGui::Begin("Instance Manager", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNav);
 
 		static auto& config = Config::getInstance().get();
-		static int item_current_idx = 0;
 		static int lastSelectedIndex = -1;
-		if (selection.size() != instances.size())
+		if (g_Selection.size() != g_InstanceNames.size())
 		{
-			selection.resize(instances.size());
+			g_Selection.resize(g_InstanceNames.size());
 		}
 
 		static ImGuiTextFilter filter;
 		filter.Draw("##Filter", -FLT_MIN);
 
-		if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN, 20 * ImGui::GetTextLineHeightWithSpacing())))
+		if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN, 25 * ImGui::GetTextLineHeightWithSpacing())))
 		{
 			if (!ImGui::IsAnyItemActive() && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A)))
 			{
-				for (int n = 0; n < instances.size(); ++n)
+				for (int n = 0; n < g_InstanceNames.size(); ++n)
 				{
-					const std::string& path_name = instances[n].Package.Username;
+					const std::string& path_name = g_InstanceNames[n];
 					if (filter.PassFilter(path_name.c_str()))
 					{
-						selection[n] = true;
+						g_Selection[n] = true;
 					}
 					else
 					{
-						selection[n] = false;
+						g_Selection[n] = false;
 					}
 				}
 			}
 
-			for (int n = 0; n < instances.size(); ++n)
+			for (int n = 0; n < g_InstanceNames.size(); ++n)
 			{
-				const std::string& path_name = instances[n].Package.Username;
+				const std::string& instanceName = g_InstanceNames[n];
 
-				if (filter.PassFilter(path_name.c_str()))
+				if (filter.PassFilter(instanceName.c_str()))
 				{
-					const bool is_selected = selection[n];
+					const bool is_selected = g_Selection[n];
 
-					if (instances[n].ProcessID != 0)
+					if (g_InstanceControl.IsInstanceRunning(g_InstanceNames[n]))
 					{
-						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(40, 170, 40, 255));
+						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(40, 170, 40, 255)); // Set color for the bullet
+						ImGui::Bullet();  // Draw a bullet
+						ImGui::PopStyleColor();  // Reset color to default
+						ImGui::SameLine();  // Ensure the next item is on the same line as the bullet
+
+						// Check if the bullet is hovered
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::BeginTooltip();
+							ImGui::Text("Instance has been launched.");
+							ImGui::EndTooltip();
+						}
+					}
+					else
+					{
+						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(77, 77, 77, 255)); // Set color for the bullet
+						ImGui::Bullet();
+						ImGui::PopStyleColor();
+						ImGui::SameLine();
+
+						// Check if the bullet is hovered
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::BeginTooltip();
+							ImGui::Text("Instance has not been launched.");
+							ImGui::EndTooltip();
+						}
 					}
 
-					if (ImGui::Selectable(instances[n].Package.Username.c_str(), is_selected))
+					if (ImGui::Selectable(g_InstanceNames[n].c_str(), is_selected))
 					{
 						if (ImGui::GetIO().KeyShift && lastSelectedIndex != -1)
 						{
@@ -110,18 +139,18 @@ public:
 							int end = std::max(lastSelectedIndex, n);
 							for (int i = start; i <= end; ++i)
 							{
-								selection[i] = true;
+								g_Selection[i] = true;
 							}
 						}
 						else if (!ImGui::GetIO().KeyCtrl)
 						{
 							// Clear selection when CTRL is not held
-							std::fill(selection.begin(), selection.end(), false);
-							selection[n] = true;
+							std::fill(g_Selection.begin(), g_Selection.end(), false);
+							g_Selection[n] = true;
 						}
 						else
 						{
-							selection[n] = !selection[n];
+							g_Selection[n] = !g_Selection[n];
 						}
 
 						lastSelectedIndex = n;
@@ -131,32 +160,27 @@ public:
 					if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
 					{
 						// If no instances or only one instance is selected, or the right clicked instance isn't part of the selection
-						if (std::count(selection.begin(), selection.end(), true) <= 1 || !selection[n])
+						if (std::count(g_Selection.begin(), g_Selection.end(), true) <= 1 || !g_Selection[n])
 						{
-							std::fill(selection.begin(), selection.end(), false); // Clear other selections
-							selection[n] = true; // Select the current instance
+							std::fill(g_Selection.begin(), g_Selection.end(), false); // Clear other selections
+							g_Selection[n] = true; // Select the current instance
 							lastSelectedIndex = n; // Update the last selected index
 						}
-					}
-
-					if (instances[n].ProcessID != 0)
-					{
-						ImGui::PopStyleColor();
 					}
 
 					if (ImGui::BeginPopupContextItem())
 					{
 						std::string selectedNames = "Selected: ";
 						bool isFirst = true;
-						for (int i = 0; i < selection.size(); ++i)
+						for (int i = 0; i < g_Selection.size(); ++i)
 						{
-							if (selection[i])
+							if (g_Selection[i])
 							{
 								if (!isFirst)
 								{
 									selectedNames += ", ";
 								}
-								selectedNames += instances[i].Package.Username;
+								selectedNames += g_InstanceNames[i];
 								isFirst = false;
 							}
 						}
@@ -167,27 +191,27 @@ public:
 
 						if (ImGui::TreeNode("Launch control"))
 						{
-							static std::string placeid = config["lastPlaceID"];
-							static std::string linkcode = config["lastVip"];
+							static std::string placeID = config["lastPlaceID"];
+							static std::string linkCode = config["lastVip"];
 
 							ImGui::PushItemWidth(130.0f);
 
-							ui::InputTextWithHint("##placeid", "PlaceID", &placeid);
+							ui::InputTextWithHint("##placeid", "PlaceID", &placeID);
 
 							ImGui::SameLine();
 
-							ui::InputTextWithHint("##linkcode", "VIP link code", &linkcode);
+							ui::InputTextWithHint("##linkcode", "VIP link code", &linkCode);
 
 							ImGui::SameLine();
 
-							static double launchdelay = 0;
-							ImGui::InputDouble("##delay", &launchdelay);
+							static double launchDelay = 0;
+							ImGui::InputDouble("##delay", &launchDelay);
 
 							ImGui::PopItemWidth();
 
 							ImGui::SameLine();
 
-							RenderLaunch(placeid, linkcode, launchdelay);
+							RenderLaunch(placeID, linkCode, launchDelay);
 
 							ImGui::SameLine();
 
@@ -197,16 +221,14 @@ public:
 
 						RenderSettings();
 
-						if (std::count(selection.begin(), selection.end(), true) > 1 || instances[n].ProcessID == 0)
+						if (std::count(g_Selection.begin(), g_Selection.end(), true) > 1 || !g_InstanceControl.IsInstanceRunning(g_InstanceNames[n]))
 							ImGui::BeginDisabled();
 
 						RenderProcessControl();
 
-						RenderFastLogin(n);
-
 						RenderAutoLogin(n);
 
-						if (std::count(selection.begin(), selection.end(), true) > 1 || instances[n].ProcessID == 0)
+						if (std::count(g_Selection.begin(), g_Selection.end(), true) > 1 || !g_InstanceControl.IsInstanceRunning(g_InstanceNames[n]))
 							ImGui::EndDisabled();
 
 						ImGui::Separator();
@@ -230,12 +252,11 @@ public:
 
 		ImGui::Separator();
 
-		AppLog::getInstance().draw("Log");
+		AppLog::GetInstance().draw("Log");
 
 		ImGui::End();
 
-		management.draw("File Management");
-
+		m_FileManagement.draw("File Management");
     }
 
     // The callbacks are updated and called BEFORE the Update loop is entered
@@ -271,11 +292,9 @@ public:
     }
 
 private:
-	std::vector<std::future<void>> instance_update_button_futures;
-	ThreadManager thread_manager;
-	QueuedThreadManager queued_thread_manager;
-	MouseController mouse_controller;
-	Management management = Management(instances, selection);
+	ThreadManager m_ThreadManager;
+	QueuedThreadManager m_QueuedThreadManager;
+	FileManagement m_FileManagement = FileManagement(g_InstanceNames, g_Selection);
 
 	void RenderProcessControl()
 	{
@@ -292,13 +311,15 @@ private:
 			{
 				ForEachSelectedInstance([&](int idx)
 					{
-						if (!Native::SetProcessAffinity(instances[idx].ProcessID, cpucores))
+						auto mgr = g_InstanceControl.GetManager(g_InstanceNames[idx]);
+
+						if (!Native::SetProcessAffinity(mgr->GetPID(), cpucores))
 						{
-							AppLog::getInstance().add_log("Failed to set affinity for instance {}", instances[idx].Package.Username);
+							AppLog::GetInstance().addLog("Failed to set affinity for instance {}", g_InstanceNames[idx]);
 						}
 						else
 						{
-							AppLog::getInstance().add_log("Set affinity for instance {}", instances[idx].Package.Username);
+							AppLog::GetInstance().addLog("Set affinity for instance {}", g_InstanceNames[idx]);
 						}
 					}
 				);
@@ -322,10 +343,10 @@ private:
 		cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
 
 		if (maxVal > threshold) {
-			int x_mid = maxLoc.x + (templateIMG.cols / 2);
-			int y_mid = maxLoc.y + (templateIMG.rows / 2);
-			AppLog::getInstance().add_log("Button found from template {} at location: ({}, {})", template_path.c_str(), x_mid, y_mid);
-			return { x_mid, y_mid };
+			int xMid = maxLoc.x + (templateIMG.cols / 2);
+			int yMid = maxLoc.y + (templateIMG.rows / 2);
+			AppLog::GetInstance().addLog("Button found from template {} at location: ({}, {})", template_path.c_str(), xMid, yMid);
+			return { xMid, yMid };
 		}
 		else {
 			return { -1, -1 };
@@ -333,14 +354,14 @@ private:
 	}
 
 	void PerformMouseAction(int x_mid, int y_mid, std::optional<int> y_offset = std::nullopt) {
-		mouse_controller.MoveMouse(x_mid, y_mid);
-		mouse_controller.ClickMouse();
+		g_MouseController.MoveMouse(x_mid, y_mid);
+		g_MouseController.ClickMouse();
 
 		if (y_offset) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
-			mouse_controller.MoveMouse(x_mid, y_mid + *y_offset);
-			mouse_controller.ClickMouse();
+			g_MouseController.MoveMouse(x_mid, y_mid + *y_offset);
+			g_MouseController.ClickMouse();
 		}
 	}
 
@@ -349,10 +370,10 @@ private:
 		std::string codeValue = Roblox::FindCodeValue(pHandle, username);
 
 		if (codeValue == "") {
-			AppLog::getInstance().add_log("Code value not found");
+			AppLog::GetInstance().addLog("Code value not found");
 		}
 		else {
-			AppLog::getInstance().add_log("Code value found: {}", codeValue);
+			AppLog::GetInstance().addLog("Code value found: {}", codeValue);
 			Roblox::EnterCode(codeValue, cookie);
 			Roblox::ValidateCode(codeValue, cookie);
 		}
@@ -372,16 +393,17 @@ private:
 			if (ImGui::Button("Login", ImVec2(320.0f, 0.0f)))
 			{
 				std::thread([this, n]() {
+					AppLog::GetInstance().addLog("Beginning auto login for {}", g_InstanceNames[n]);
+
+					auto start = std::chrono::high_resolution_clock::now();
+
+					auto it = std::ranges::find_if(g_Selection, [](bool val) { return val; });
 
 					DWORD pid = 0;
-
-					for (int i = 0; i < selection.size(); ++i)
+					if (it != g_Selection.end())
 					{
-						if (selection[i])
-						{
-							pid = instances[i].ProcessID;
-							break;
-						}
+						int index = std::distance(g_Selection.begin(), it);
+						pid = g_InstanceControl.GetManager(g_InstanceNames[index])->GetPID();
 					}
 
 					int x_mid, y_mid;
@@ -392,7 +414,7 @@ private:
 
 						std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
-						HandleCodeValidation(pid, instances[n].Package.Username, cookie);
+						HandleCodeValidation(pid, g_InstanceNames[n], cookie);
 					}
 					else {
 						std::tie(x_mid, y_mid) = MatchTemplate("images\\anotherdev.png", 0.80);
@@ -401,93 +423,18 @@ private:
 
 							std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
-							HandleCodeValidation(pid, instances[n].Package.Username, cookie);
+							HandleCodeValidation(pid, g_InstanceNames[n], cookie);
 						}
 					}
-					}).detach();
+
+					auto end = std::chrono::high_resolution_clock::now();
+					auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+					AppLog::GetInstance().addLog("Auto login took {} milliseconds", dur.count());
+				}).detach();
 			}
 
 			if (strlen(cookie) == 0)
 				ImGui::EndDisabled();
-
-			ImGui::TreePop();
-		}
-	}
-
-	void RenderFastLogin(int item_current_idx)
-	{
-		static bool showCodeValuePopup = false;
-
-		if (ImGui::TreeNode("Fast Login"))
-		{
-			ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "*Make sure you have already clicked on \"Log In With Another Device\"");
-
-			static char cookie[3000] = "";
-			static char quicklogincode[10] = "";
-
-			ImGui::InputTextWithHint("##cookie", "Cookie", cookie, IM_ARRAYSIZE(cookie));
-
-			ImGui::InputTextWithHint("##quicklogincode", "Quick login code", quicklogincode, IM_ARRAYSIZE(quicklogincode));
-
-
-			ImGui::SameLine();
-			if (ImGui::Button("Get Code"))
-			{
-				DWORD pid = 0;
-
-				for (int i = 0; i < selection.size(); ++i)
-				{
-					if (selection[i])
-					{
-						pid = instances[i].ProcessID;
-						break;
-					}
-				}
-
-				if (pid != 0)
-				{
-					HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-					std::string codeValue = Roblox::FindCodeValue(pHandle, instances[item_current_idx].Package.Username);
-					if (codeValue != "")
-					{
-						strcpy(quicklogincode, codeValue.c_str());
-					}
-					else
-					{
-						showCodeValuePopup = true;
-					}
-
-				}
-			}
-
-			if (showCodeValuePopup)
-			{
-				ImGui::OpenPopup("Code Value Error");
-			}
-
-			if (ImGui::BeginPopupModal("Code Value Error", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-			{
-				ImGui::Text("Code value not found!");
-				if (ImGui::Button("OK", ImVec2(120, 0)))
-				{
-					ImGui::CloseCurrentPopup();
-					showCodeValuePopup = false;
-				}
-				ImGui::EndPopup();
-			}
-
-			if (strlen(cookie) == 0 || strlen(quicklogincode) == 0)
-				ImGui::BeginDisabled();
-
-			if (ImGui::Button("Login", ImVec2(320.0f, 0.0f)))
-			{
-				Roblox::EnterCode(quicklogincode, cookie);
-				Roblox::ValidateCode(quicklogincode, cookie);
-			}
-
-			if (strlen(cookie) == 0 || strlen(quicklogincode) == 0)
-				ImGui::EndDisabled();
-
 
 			ImGui::TreePop();
 		}
@@ -502,40 +449,20 @@ private:
 		if (ui::GreenButton("Launch"))
 		{
 			ForEachSelectedInstance([this, placeid, linkcode, launchdelay](int idx) {
-				auto callback = [idx, this]() {
-					AppLog::getInstance().add_log("Launched {}", instances[idx].Package.Username);
+				auto callback = [idx]() {
+					AppLog::GetInstance().addLog("Launched {}", g_InstanceNames[idx]);
 				};
 
-				AppLog::getInstance().add_log("Launching {}...", instances[idx].Package.Username);
+				AppLog::GetInstance().addLog("Launching {}...", g_InstanceNames[idx]);
 
-				queued_thread_manager.submit_task("delay" + std::to_string(idx), [launchdelay]() {
+				this->m_QueuedThreadManager.submit_task("delay" + std::to_string(idx), [launchdelay]() {
 					std::this_thread::sleep_for(std::chrono::milliseconds((int)(launchdelay * 1000)));
 					}
 				);
 
-				queued_thread_manager.submit_task("launchInstance" + std::to_string(idx), [idx, placeid, linkcode, this]() {
-					std::string appid = instances[idx].Package.AppID;
+				this->m_QueuedThreadManager.submit_task("launchInstance" + std::to_string(idx), [idx, placeid, linkcode]() {
+					g_InstanceControl.LaunchInstance(g_InstanceNames[idx], placeid, linkcode);
 
-					if (linkcode.empty())
-						Roblox::LaunchRoblox(instances[idx].Package.AppID, placeid);
-					else
-						Roblox::LaunchRoblox(instances[idx].Package.AppID, placeid, linkcode);
-
-					//try 5 times to find the roblox process
-					for (int i = 0; i < 5; i++)
-					{
-						auto pids = Roblox::GetRobloxInstances();
-						for (auto pid : pids)
-						{
-							std::string command_line = Native::get_commandline_arguments(pid);
-							if (command_line.find(instances[idx].Package.Username) != std::string::npos)
-							{
-								instances[idx].ProcessID = pid;
-								return;
-							}
-						}
-						std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-					}
 					}, callback);
 				});
 
@@ -560,21 +487,21 @@ private:
 			if (!AnyInstanceSelected())
 				return;
 
-			static int graphicsquality = 1;
-			ImGui::InputInt("Graphics Quality", &graphicsquality);
+			static int graphicsQuality = 1;
+			ImGui::InputInt("Graphics Quality", &graphicsQuality);
 
-			static float newmastervolume = 0.8f;
-			ImGui::InputFloat("Master volume", &newmastervolume, 0.01f, 1.0f, "%.3f");
+			static float newMasterVolume = 0.8f;
+			ImGui::InputFloat("Master volume", &newMasterVolume, 0.01f, 1.0f, "%.3f");
 
-			static int newsavedquality = 1;
-			ImGui::InputInt("Saved Graphics Quality", &newsavedquality);
+			static int newSavedQuality = 1;
+			ImGui::InputInt("Saved Graphics Quality", &newSavedQuality);
 
 			if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
-				ForEachSelectedInstance([this](int idx) {
-					std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::GetCurrentUsername(), instances[idx].Package.PackageFamilyName);
+				ForEachSelectedInstance([](int idx) {
+					std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::GetCurrentUsername(), g_InstanceControl.GetInstance(g_InstanceNames[idx]).PackageFamilyName);
 
 					if (std::filesystem::exists(path))
-						Roblox::ModifySettings(path, graphicsquality, newmastervolume, newsavedquality);
+						Roblox::ModifySettings(path, graphicsQuality, newMasterVolume, newSavedQuality);
 					});
 			}
 			ImGui::TreePop();
@@ -588,73 +515,70 @@ private:
 
 		if (ui::RedButton("Terminate"))
 		{
-			ForEachSelectedInstance([this](int idx) {
-				if (instances[idx].ProcessID != 0)
+			ForEachSelectedInstance([](int idx) {
+				if (g_InstanceControl.IsInstanceRunning(g_InstanceNames[idx]))
 				{
-					HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, instances[idx].ProcessID);
-					TerminateProcess(hProcess, 0);
-					CloseHandle(hProcess);
-
-					instances[idx].ProcessID = 0;
+					AppLog::GetInstance().addLog("Terminating {}", g_InstanceNames[idx]);
+					g_InstanceControl.TerminateInstance(g_InstanceNames[idx]);
 				}
-				});
+			});
 		}
 	}
 
 	void DeleteInstances(const std::set<int>& indices)
 	{
-		AppLog::getInstance().add_log("Deleting instances...");
+		AppLog::GetInstance().addLog("Deleting instances...");
 
 		// It's safer to erase items from a vector in reverse order
-		auto sorted_indices = indices;
-		for (auto it = sorted_indices.rbegin(); it != sorted_indices.rend(); ++it)
+		auto sortedIndices = indices;
+		for (auto it = sortedIndices.rbegin(); it != sortedIndices.rend(); ++it)
 		{
 			int idx = *it;
-			thread_manager.submit_task("deleteInstance", [idx, this]() {
+			this->m_QueuedThreadManager.submit_task("deleteInstance" + std::to_string(idx), [idx]() {
 				try
 				{
-					Roblox::NukeInstane(instances[idx].Package.Name, instances[idx].Package.InstallLocation);
-					instances.erase(instances.begin() + idx);
+					g_InstanceControl.DeleteInstance(g_InstanceNames[idx]);
+					g_InstanceNames.erase(g_InstanceNames.begin() + idx);
 				}
 				catch (const std::exception& e)
 				{
-					AppLog::getInstance().add_log("Failed to delete instance {}: {}", instances[idx].Package.Name, e.what());
+					AppLog::GetInstance().addLog("Failed to delete instance {}: {}", g_InstanceControl.GetInstance(g_InstanceNames[idx]).Name, e.what());
 				}
 
 				}, [&]() {
-					AppLog::getInstance().add_log("Instance Deleted");
+					AppLog::GetInstance().addLog("Instance Deleted");
 				});
 		}
 	}
 
 	void RenderRemoveInstances()
 	{
-		static bool dont_ask_me_next_time = false;
+		static bool removeDontAskMeNextTime = false;
 
 		if (!AnyInstanceSelected())
 			return;
 
 		if (ui::ConditionalButton("Remove Selected Instances", true, ui::ButtonStyle::Red))
 		{
-			if (!dont_ask_me_next_time)
+			if (!removeDontAskMeNextTime)
 			{
 				ImGui::OpenPopup("Delete?");
 			}
 			else
 			{
 				ForEachSelectedInstance([this](int idx) {
-					thread_manager.submit_task("deleteInstance", [idx, this]() {
+					this->m_ThreadManager.submit_task("deleteInstance", [idx]() {
 						try
 						{
-							Roblox::NukeInstane(instances[idx].Package.Name, instances[idx].Package.InstallLocation);
-							instances.erase(instances.begin() + idx);
+							g_InstanceControl.DeleteInstance(g_InstanceNames[idx]);
+							g_InstanceNames.erase(g_InstanceNames.begin() + idx);
 						}
 						catch (const std::exception& e)
 						{
-							AppLog::getInstance().add_log("Failed to delete instance {}: {}", instances[idx].Package.Name, e.what());
+							AppLog::GetInstance().addLog("Failed to delete instance {}: {}", g_InstanceNames[idx], e.what());
 						}
 						}, [&]() {
-							AppLog::getInstance().add_log("Instance Deleted");
+							AppLog::GetInstance().addLog("Instance Deleted");
 						});
 					});
 			}
@@ -666,7 +590,7 @@ private:
 
 		if (ImGui::BeginPopupModal("Delete?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 		{
-			int num_selected = std::count(selection.begin(), selection.end(), true);
+			int num_selected = std::count(g_Selection.begin(), g_Selection.end(), true);
 
 			if (num_selected == 1) {
 				ImGui::Text("This will delete all the files related to the selected instance and unregister it.\nThis operation cannot be undone!\n\n");
@@ -677,19 +601,19 @@ private:
 			ImGui::Separator();
 
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-			ImGui::Checkbox("Don't ask me next time", &dont_ask_me_next_time);
+			ImGui::Checkbox("Don't ask me next time", &removeDontAskMeNextTime);
 			ImGui::PopStyleVar();
 
 			if (ImGui::Button("OK", ImVec2(523.0f / 2.0f, 0))) {
-				AppLog::getInstance().add_log("Deleting selected instances...");
+				AppLog::GetInstance().addLog("Deleting selected instances...");
 
-				std::set<int> selected_indices;
-				for (int i = 0; i < selection.size(); ++i) {
-					if (selection[i]) {
-						selected_indices.insert(i);
+				std::set<int> selectedIndices;
+				for (int i = 0; i < g_Selection.size(); ++i) {
+					if (g_Selection[i]) {
+						selectedIndices.insert(i);
 					}
 				}
-				DeleteInstances(selected_indices);
+				DeleteInstances(selectedIndices);
 
 				ImGui::CloseCurrentPopup();
 			}
@@ -704,11 +628,11 @@ private:
 
 	void RenderCreateInstance()
 	{
-		static std::string instance_name_buf;
+		static std::string instanceNameBuf;
 
 		ImGui::PushItemWidth(ImGui::GetWindowWidth() - 315.0f);
 
-		ui::InputTextWithHint("##NameStr", "Input the instance name here...", &instance_name_buf);
+		ui::InputTextWithHint("##NameStr", "Input the instance name here...", &instanceNameBuf);
 
 		if (ImGui::IsItemHovered())
 			ImGui::SetTooltip(R"(Disallowed characters: <>:\"/\\|?*\t\n\r )");
@@ -717,59 +641,37 @@ private:
 
 		ImGui::SameLine();
 
-		if (ui::ConditionalButton("Create instance", !(instance_name_buf.empty() || StringUtils::contains_only(instance_name_buf, '\0')), ui::ButtonStyle::Green))
+		if (ui::ConditionalButton("Create instance", !(instanceNameBuf.empty() || StringUtils::contains_only(instanceNameBuf, '\0')), ui::ButtonStyle::Green))
 		{
-			AppLog::getInstance().add_log("Creating instance...");
+			AppLog::GetInstance().addLog("Creating instance...");
 
-			std::vector<RobloxInstance> existing_instances = instances;
+			std::vector<std::string> existing_instances = g_InstanceNames;
 
 			auto completionCallback = [&]() {
-				AppLog::getInstance().add_log("Instance created");
-				std::vector<RobloxInstance> new_instances = Roblox::GetNewInstances(instances);
-				instances.insert(instances.end(), new_instances.begin(), new_instances.end());
-				selection.resize(instances.size(), false);
+				AppLog::GetInstance().addLog("Instance created");
+				std::vector<std::string> new_instances = Roblox::GetNewInstances(g_InstanceNames);
+				g_InstanceNames.insert(g_InstanceNames.end(), new_instances.begin(), new_instances.end());
+				g_Selection.resize(g_InstanceNames.size(), false);
 			};
 
-			thread_manager.submit_task("createInstance", []() {
-				std::ifstream file("Template\\AppxManifest.xml", std::ios::in | std::ios::binary | std::ios::ate);
-				std::string inputXML;
-				inputXML.resize(file.tellg());
-				file.seekg(0, std::ios::beg);
-				file.read(&inputXML[0], inputXML.size());
-				file.close();
-
-				std::string buf = Utils::ModifyAppxManifest(inputXML, instance_name_buf);
-
-				std::string path = fmt::format("instances\\{}", instance_name_buf);
-
-				std::filesystem::create_directory(path);
-
-				FS::CopyDirectory("Template", path);
-
-				std::ofstream ofs(path + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
-				ofs << buf;
-				ofs.flush();
-				ofs.close();
-
-				std::string abs_path = std::filesystem::absolute(path + "\\AppxManifest.xml").string();
-				std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
-				Native::RunPowershellCommand(cmd);
-				}, completionCallback);
+			this->m_ThreadManager.submit_task("createInstance", []() {
+				g_InstanceControl.CreateInstance(instanceNameBuf);
+			}, completionCallback);
 		}
 	}
 
 	void RenderUpdateTemplate() {
-		auto callback = [&]() {
-			AppLog::getInstance().add_log("Template updated");
+		auto callback = []() {
+			AppLog::GetInstance().addLog("Template updated");
 		};
 		if (ImGui::Button("Update Template")) {
-			AppLog::getInstance().add_log("Updating template...");
+			AppLog::GetInstance().addLog("Updating template...");
 			if (!std::filesystem::exists("Template")) {
 				std::filesystem::create_directories("Template\\Assets");
 			}
-			queued_thread_manager.submit_task("updatetemplate", [&]() {
+			this->m_QueuedThreadManager.submit_task("updatetemplate", [&]() {
 				Utils::UpdatePackage("Template");
-				}, callback);
+			}, callback);
 		}
 	}
 
@@ -777,17 +679,18 @@ private:
 	void RenderUpdateInstance() {
 		if (!AnyInstanceSelected())
 			return;
+
 		if (ImGui::Button("Update Instance")) {
 			ForEachSelectedInstance([this](int idx) {
-				auto callback = [idx, this]() {
-					std::string abs_path = std::filesystem::absolute(instances[idx].Package.InstallLocation + "\\AppxManifest.xml").string();
+				auto callback = [idx]() {
+					std::string abs_path = std::filesystem::absolute(g_InstanceControl.GetInstance(g_InstanceNames[idx]).InstallLocation + "\\AppxManifest.xml").string();
 					std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
 					Native::RunPowershellCommand(cmd);
-					AppLog::getInstance().add_log("Update Done");
+					AppLog::GetInstance().addLog("Update Done");
 				};
-				queued_thread_manager.submit_task(fmt::format("updateinstances{}", idx), [idx, this]() {
-					AppLog::getInstance().add_log("Updating {}...", instances[idx].Package.Name);
-					Utils::UpdatePackage(instances[idx].Package.InstallLocation, instances[idx].Package.Username);
+				this->m_QueuedThreadManager.submit_task(fmt::format("updateinstances{}", idx), [idx]() {
+					AppLog::GetInstance().addLog("Updating {}...", g_InstanceNames[idx]);
+					Utils::UpdatePackage(g_InstanceControl.GetInstance(g_InstanceNames[idx]).InstallLocation, g_InstanceNames[idx]);
 					}, callback);
 				});
 			ImGui::CloseCurrentPopup();
@@ -796,38 +699,25 @@ private:
 
 	bool AnyInstanceSelected() const
 	{
-		return std::any_of(selection.begin(), selection.end(), [](bool selected) { return selected; });
-	}
-
-	std::set<int> GetSelectedIndices() const
-	{
-		std::set<int> selected_indices;
-		for (int i = 0; i < selection.size(); ++i)
-		{
-			if (selection[i])
-			{
-				selected_indices.insert(i);
-			}
-		}
-		return selected_indices;
+		return std::any_of(g_Selection.begin(), g_Selection.end(), [](bool selected) { return selected; });
 	}
 
 	template <typename Func>
 	void ForEachSelectedInstance(Func func) const
 	{
-		auto selected_indices = GetSelectedIndices();
-		for (auto idx : selected_indices)
+		for (int i = 0; i < g_Selection.size(); ++i)
 		{
-			func(idx);
+			if (g_Selection[i])
+			{
+				func(i);
+			}
 		}
 	}
-
-
 };
 
-int main(int, char**)
+int main()
 {
-    App app;
+    InstanceManager app;
     app.Run();
     return 0;
 }

@@ -21,22 +21,6 @@
 
 #include "ntdll.h"
 
-
-struct RobloxPackage {
-    std::string Name;
-    std::string Username;
-    std::string PackageID;
-    std::string AppID;
-    std::string InstallLocation;
-    std::string PackageFamilyName;
-    std::string Version;
-};
-
-struct RobloxInstance {
-    RobloxPackage Package;
-    DWORD ProcessID = {};
-};
-
 namespace FS
 {
     bool CopyDirectory(const std::filesystem::path& src, const std::filesystem::path& dst);
@@ -90,11 +74,20 @@ namespace StringUtils
 
 namespace Roblox
 {
+    struct Instance {
+        std::string Name;
+        std::string PackageID;
+        std::string AppID;
+        std::string InstallLocation;
+        std::string PackageFamilyName;
+        std::string Version;
+    };
+
+
     void NukeInstane(const std::string name, const std::string path);
-    std::vector<RobloxPackage> ProcessRobloxPackages();
-    std::vector<RobloxInstance> WrapPackages();
-    void LaunchRoblox(std::string AppID, const std::string& placeid);
-    void LaunchRoblox(std::string AppID, const std::string& placeid, const std::string& linkcode);
+    std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages();
+    DWORD LaunchRoblox(std::string AppID, std::string Username, const std::string& placeid);
+    DWORD LaunchRoblox(std::string AppID, std::string Username, const std::string& placeid, const std::string& linkcode);
 
     std::set<DWORD> GetRobloxInstances();
 
@@ -111,7 +104,7 @@ namespace Roblox
     std::string ValidateCode(std::string code, std::string cookie);
     std::string ExtractCode(const unsigned char* data, size_t dataSize);
     std::string FindCodeValue(HANDLE pHandle, const std::string& name);
-    std::vector<RobloxInstance> GetNewInstances(const std::vector<RobloxInstance>& old_instances);
+    std::vector<std::string> GetNewInstances(const std::vector<std::string>& old_instances);
 }
 
 namespace Utils
@@ -131,5 +124,4 @@ namespace Utils
     void WriteAppxManifest(const std::string& url, const std::string& localPath, const std::string name = "");
     void UpdatePackage(const std::string& baseFolder, const std::string& instanceName = "");
     bool SaveScreenshotAsPng(const char* filename);
-
 }

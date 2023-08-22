@@ -25,3 +25,5 @@ instances/
 /x64/Debug
 /InstanceManager/screenshot.png
 /InstanceManager/config.json
+/InstanceManager/x64/Release
+/x64/Release

@@ -11,7 +11,7 @@
 class AppLog
 {
 public:
-	static AppLog& getInstance()
+	static AppLog& GetInstance()
 	{
 		static AppLog instance;
 		return instance;
@@ -22,24 +22,24 @@ public:
 
 	void clear()
 	{
-		Buf.clear();
-		LineOffsets.clear();
-		LineOffsets.push_back(0);
+		m_Buf.clear();
+		m_LineOffsets.clear();
+		m_LineOffsets.push_back(0);
 	}
 
 	template <typename... Args>
-	void add_log(const char* fmt, const Args&... args)
+	void addLog(const char* fmt, const Args&... args)
 	{
 		auto now = std::chrono::system_clock::now();
-		auto now_time_t = std::chrono::system_clock::to_time_t(now);
-		auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
-		std::string timestamp = fmt::format("[{:%Y-%m-%d %H:%M:%S}.{:03d}]  ", *std::localtime(&now_time_t), now_ms.count());
+		auto nowTimeT = std::chrono::system_clock::to_time_t(now);
+		auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+		std::string timestamp = fmt::format("[{:%Y-%m-%d %H:%M:%S}.{:03d}]  ", *std::localtime(&nowTimeT), nowMs.count());
 
 		std::string message = timestamp + fmt::format(fmt::runtime(fmt), args...);
 
 		{
 			std::scoped_lock lock(mtx);
-			logsQueue.push(message);
+			m_LogsQueue.push(message);
 		}
 		cv.notify_one();
 	}
@@ -49,7 +49,7 @@ public:
 		// Optiosns menu
 		if (ImGui::BeginPopup("Options"))
 		{
-			ImGui::Checkbox("Auto-scroll", &AutoScroll);
+			ImGui::Checkbox("Auto-scroll", &m_AutoScroll);
 			ImGui::EndPopup();
 		}
 
@@ -62,7 +62,7 @@ public:
 		ImGui::SameLine();
 		bool copy = ImGui::Button("Copy");
 		ImGui::SameLine();
-		Filter.Draw("##LogFilter", -FLT_MIN);
+		m_Filter.Draw("##LogFilter", -FLT_MIN);
 
 		ImGui::Separator();
 		ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
@@ -73,15 +73,15 @@ public:
 			ImGui::LogToClipboard();
 
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-		const char* buf = Buf.begin();
-		const char* buf_end = Buf.end();
-		if (Filter.IsActive())
+		const char* buf = m_Buf.begin();
+		const char* buf_end = m_Buf.end();
+		if (m_Filter.IsActive())
 		{
-			for (int line_no = 0; line_no < LineOffsets.Size; line_no++)
+			for (int line_no = 0; line_no < m_LineOffsets.Size; line_no++)
 			{
-				const char* line_start = buf + LineOffsets[line_no];
-				const char* line_end = (line_no + 1 < LineOffsets.Size) ? (buf + LineOffsets[line_no + 1] - 1) : buf_end;
-				if (Filter.PassFilter(line_start, line_end))
+				const char* line_start = buf + m_LineOffsets[line_no];
+				const char* line_end = (line_no + 1 < m_LineOffsets.Size) ? (buf + m_LineOffsets[line_no + 1] - 1) : buf_end;
+				if (m_Filter.PassFilter(line_start, line_end))
 				{
 					RenderLogLine(line_start, line_end);
 				}
@@ -90,21 +90,21 @@ public:
 		else
 		{
 			ImGuiListClipper clipper;
-			clipper.Begin(LineOffsets.Size);
+			clipper.Begin(m_LineOffsets.Size);
 			while (clipper.Step())
 			{
 				for (int line_no = clipper.DisplayStart; line_no < clipper.DisplayEnd; line_no++)
 				{
-					const char* line_start = buf + LineOffsets[line_no];
-					const char* line_end = (line_no + 1 < LineOffsets.Size) ? (buf + LineOffsets[line_no + 1] - 1) : buf_end;
-					RenderLogLine(line_start, line_end);
+					const char* lineStart = buf + m_LineOffsets[line_no];
+					const char* lineEnd = (line_no + 1 < m_LineOffsets.Size) ? (buf + m_LineOffsets[line_no + 1] - 1) : buf_end;
+					RenderLogLine(lineStart, lineEnd);
 				}
 			}
 			clipper.End();
 		}
 		ImGui::PopStyleVar();
 
-		if (AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+		if (m_AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
 			ImGui::SetScrollHereY(1.0f);
 
 		ImGui::EndChild();
@@ -112,9 +112,9 @@ public:
 private:
 
 	AppLog()
-		: workerThread(&AppLog::processLogs, this)
+		: m_WorkerThread(&AppLog::m_ProcessLogs, this)
 	{
-		AutoScroll = true;
+		m_AutoScroll = true;
 		clear();
 	}
 
@@ -122,44 +122,44 @@ private:
 	{
 		{
 			std::scoped_lock lock(mtx);
-			stopWorker = true;
+			m_StopWorker = true;
 		}
 		cv.notify_all();
-		if (workerThread.joinable()) workerThread.join();
+		if (m_WorkerThread.joinable()) m_WorkerThread.join();
 	}
 
 
-	void processLogs()
+	void m_ProcessLogs()
 	{
 		while (true)
 		{
 			std::string log;
 			{
 				std::unique_lock lock(mtx);
-				cv.wait(lock, [this] { return !logsQueue.empty() || stopWorker; });
-				if (stopWorker && logsQueue.empty()) return;
-				log = logsQueue.front();
-				logsQueue.pop();
+				cv.wait(lock, [this] { return !m_LogsQueue.empty() || m_StopWorker; });
+				if (m_StopWorker && m_LogsQueue.empty()) return;
+				log = m_LogsQueue.front();
+				m_LogsQueue.pop();
 			}
 			// Process the log
-			Buf.append(log.data(), log.data() + log.size());
-			Buf.append("\n");  // Append newline here
-			size_t old_size = Buf.size() - log.size();
-			for (int new_size = Buf.size(); old_size < new_size; old_size++)
-				if (Buf[old_size] == '\n')
-					LineOffsets.push_back(old_size + 1);
+			m_Buf.append(log.data(), log.data() + log.size());
+			m_Buf.append("\n");  // Append newline here
+			size_t oldSize = m_Buf.size() - log.size();
+			for (int newSize = m_Buf.size(); oldSize < newSize; oldSize++)
+				if (m_Buf[oldSize] == '\n')
+					m_LineOffsets.push_back(oldSize + 1);
 		}
 	}
 
 	void RenderLogLine(const char* line_start, const char* line_end)
 	{
-		const char* timestamp_end = strstr(line_start, "]");  // Find the end of the timestamp
-		if (timestamp_end)
+		const char* timestampEnd = strstr(line_start, "]");  // Find the end of the timestamp
+		if (timestampEnd)
 		{
 			// rgb(91 190 247) normalized
-			ImGui::TextColored(ImVec4(0.3569f, 0.7451f, 0.9686f, 1.0f), "%.*s]", (int)(timestamp_end - line_start), line_start);  // Render the timestamp in yellow
+			ImGui::TextColored(ImVec4(0.3569f, 0.7451f, 0.9686f, 1.0f), "%.*s]", (int)(timestampEnd - line_start), line_start);  // Render the timestamp in yellow
 			ImGui::SameLine();
-			ImGui::TextUnformatted(timestamp_end + 2, line_end);  // Render the message
+			ImGui::TextUnformatted(timestampEnd + 2, line_end);  // Render the message
 		}
 		else
 		{
@@ -167,14 +167,14 @@ private:
 		}
 	}
 
-	ImGuiTextBuffer Buf;
-	ImGuiTextFilter Filter;
-	ImVector<int> LineOffsets;
-	bool AutoScroll;
+	ImGuiTextBuffer m_Buf;
+	ImGuiTextFilter m_Filter;
+	ImVector<int> m_LineOffsets;
+	bool m_AutoScroll;
 
 	std::mutex mtx;
 	std::condition_variable cv;
-	std::queue<std::string> logsQueue;
-	bool stopWorker = false;
-	std::thread workerThread;
+	std::queue<std::string> m_LogsQueue;
+	bool m_StopWorker = false;
+	std::thread m_WorkerThread;
 };

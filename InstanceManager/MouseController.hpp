@@ -2,34 +2,18 @@
 #include <vector>
 #include <stdexcept>
 
-float GetDPIScalingFactor() {
-    HDC screen = GetDC(NULL);
-    float dpiScaling = static_cast<float>(GetDeviceCaps(screen, LOGPIXELSX)) / 96.0f;
-    ReleaseDC(NULL, screen);
-    return dpiScaling;
-}
-
 class MouseController {
 public:
-    MouseController() {
-        ntUserSendInputBytes.resize(30); // Reserve space for 30 bytes
+    MouseController(const MouseController&) = delete;
+    MouseController& operator=(const MouseController&) = delete;
 
-        LPVOID NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("win32u"), "NtUserSendInput");
-        if (!NtUserSendInput_Addr) {
-            NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("user32"), "NtUserSendInput");
-            if (!NtUserSendInput_Addr) {
-                NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("user32"), "SendInput");
-                if (!NtUserSendInput_Addr) {
-                    throw std::runtime_error("Failed to locate the NtUserSendInput or equivalent function.");
-                }
-            }
-        }
-
-        memcpy(ntUserSendInputBytes.data(), NtUserSendInput_Addr, 30);
+    static MouseController& GetInstance() {
+        static MouseController instance;  // This is thread-safe in C++11 and later.
+        return instance;
     }
 
     BOOLEAN MoveMouse(int x, int y) {
-        float dpiScaling = GetDPIScalingFactor();
+        float dpiScaling = m_GetDPIScalingFactor();
         x = static_cast<int>(x * dpiScaling);
         y = static_cast<int>(y * dpiScaling);
 
@@ -60,17 +44,41 @@ public:
     }
 
 private:
-    std::vector<BYTE> ntUserSendInputBytes;
+    MouseController() {
+        m_ntUserSendInputBytes.resize(30); // Reserve space for 30 bytes
+
+        LPVOID NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("win32u"), "NtUserSendInput");
+        if (!NtUserSendInput_Addr) {
+            NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("user32"), "NtUserSendInput");
+            if (!NtUserSendInput_Addr) {
+                NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("user32"), "SendInput");
+                if (!NtUserSendInput_Addr) {
+                    throw std::runtime_error("Failed to locate the NtUserSendInput or equivalent function.");
+                }
+            }
+        }
+
+        memcpy(m_ntUserSendInputBytes.data(), NtUserSendInput_Addr, 30);
+    }
+
+    float m_GetDPIScalingFactor() {
+        HDC screen = GetDC(NULL);
+        float dpiScaling = static_cast<float>(GetDeviceCaps(screen, LOGPIXELSX)) / 96.0f;
+        ReleaseDC(NULL, screen);
+        return dpiScaling;
+    }
+
+    std::vector<BYTE> m_ntUserSendInputBytes;
 
     BOOLEAN SpoofedSendInput(UINT cInputs, LPINPUT pInputs, int cbSize) {
-        if (ntUserSendInputBytes.size() != 30)
+        if (m_ntUserSendInputBytes.size() != 30)
             return FALSE;
 
         LPVOID NtUserSendInput_Spoof = VirtualAlloc(0, 0x1000, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
         if (!NtUserSendInput_Spoof)
             return FALSE;
 
-        memcpy(NtUserSendInput_Spoof, ntUserSendInputBytes.data(), 30);
+        memcpy(NtUserSendInput_Spoof, m_ntUserSendInputBytes.data(), 30);
         NTSTATUS Result = reinterpret_cast<NTSTATUS(NTAPI*)(UINT, LPINPUT, int)>(NtUserSendInput_Spoof)(cInputs, pInputs, cbSize);
 
         ZeroMemory(NtUserSendInput_Spoof, 0x1000);
@@ -79,3 +87,5 @@ private:
         return (Result > 0);
     }
 };
+
+extern MouseController& g_MouseController;

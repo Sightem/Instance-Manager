@@ -1,20 +1,21 @@
 #pragma once
 #include "imgui.h"
-#include "base.hpp"
+#include "Base.hpp"
 #include "AppLog.hpp"
 
-#include "functions.h"
+#include "Functions.h"
+#include "InstanceControl.h"
 
 namespace fs = std::filesystem;
 
-class Management
+class FileManagement
 {
 public:
-    Management(std::vector<RobloxInstance>& instances, std::vector<bool>& selection)
+    FileManagement(std::vector<std::string>& instances, std::vector<bool>& selection)
         : instances(instances), selection(selection)
     {}
 
-    ~Management() = default;
+    ~FileManagement() = default;
 
     void draw(const char* title, bool* p_open = NULL)
     {
@@ -33,10 +34,10 @@ public:
         {
             if (selection[i])
             {
-                if (ImGui::TreeNode(instances[i].Package.Name.c_str()))
+                if (ImGui::TreeNode(g_InstanceControl.GetInstance(instances[i]).Name.c_str()))
                 {
-                    std::string path = FS::FindFiles(fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages", Native::GetCurrentUsername()), instances[i].Package.Name + "_")[0];
-                    DisplayFilesAndDirectories(instances[i].Package.PackageFamilyName, path, true);
+                    std::string path = FS::FindFiles(fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages", Native::GetCurrentUsername()), g_InstanceControl.GetInstance(instances[i]).Name + "_")[0];
+                    DisplayFilesAndDirectories(g_InstanceControl.GetInstance(instances[i]).PackageFamilyName, path, true);
                     ImGui::TreePop();
                 }
             }
@@ -46,7 +47,7 @@ public:
     }
 
 private:
-    std::vector<RobloxInstance>& instances;
+    std::vector<std::string>& instances;
     std::vector<bool>& selection;
 
     struct DirectoryEntryInfo {
@@ -87,8 +88,7 @@ private:
                     {
                         if (!Native::OpenInExplorer(info.entry.path().string()))
                         {
-                            //MessageBox(NULL, "Failed to open directory.", "Error", MB_ICONERROR);
-                            AppLog::getInstance().add_log("Failed to open directory {}", info.entry.path().string());
+                            AppLog::GetInstance().addLog("Failed to open directory {}", info.entry.path().string());
                         }
                     }
 
@@ -137,17 +137,17 @@ private:
         {
             if (selection[i])
             {
-                std::filesystem::path dst_path = base_src + "\\" + instances[i].Package.PackageFamilyName + "\\" + relative_path.string();
+                std::filesystem::path dst_path = base_src + "\\" + g_InstanceControl.GetInstance(instances[i]).PackageFamilyName + "\\" + relative_path.string();
 
                 if (full_src_path == dst_path)
                 {
-                    AppLog::getInstance().add_log("Source and destination are the same. Skipping copy for {}", full_src_path.string());
+                    AppLog::GetInstance().addLog("Source and destination are the same. Skipping copy for {}", full_src_path.string());
                     continue;  // Skip the copy operation for this iteration
                 }
 
                 if (!FS::CopyDirectory(full_src_path, dst_path)) {
                     std::cerr << "Failed to copy directory " << full_src_path << " to " << dst_path << '\n';
-                    AppLog::getInstance().add_log("Failed to copy directory {} to {}", full_src_path.string(), dst_path.string());
+                    AppLog::GetInstance().addLog("Failed to copy directory {} to {}", full_src_path.string(), dst_path.string());
                 }
             }
         }

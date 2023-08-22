@@ -10,8 +10,9 @@
 #include <map>
 #include "request.hpp"
 #include "AppLog.hpp"
+#include "InstanceControl.h"
 
-#define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+#define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -98,7 +99,7 @@ namespace FS
 
         ZipArchive zip(zipPath);
         if (!zip.open(ZipArchive::ReadOnly)) {
-            AppLog::getInstance().add_log("Failed to open zip archive: {}", zipPath);
+            AppLog::GetInstance().addLog("Failed to open zip archive: {}", zipPath);
             return false;
         }
 
@@ -120,7 +121,7 @@ namespace FS
                         outputFile.close();
                     }
                     else {
-                        AppLog::getInstance().add_log("Failed to write file: {}", outputPath);
+                        AppLog::GetInstance().addLog("Failed to write file: {}", outputPath);
                     }
                 }
             }
@@ -136,14 +137,14 @@ namespace FS
 
         ZipArchive zip(zipPath);
         if (!zip.open(ZipArchive::ReadOnly)) {
-            AppLog::getInstance().add_log("Failed to open zip archive: {}", zipPath);
+            AppLog::GetInstance().addLog("Failed to open zip archive: {}", zipPath);
             return false;
         }
 
         auto nbEntries = zip.getNbEntries();
 
         if (nbEntries != 1) {
-            AppLog::getInstance().add_log("Zip archive must contain only one file: {}", zipPath);
+            AppLog::GetInstance().addLog("Zip archive must contain only one file: {}", zipPath);
             zip.close();
             return false;
         }
@@ -157,13 +158,13 @@ namespace FS
                 outputFile.close();
             }
             else {
-                AppLog::getInstance().add_log("Failed to write file: {}", destination);
+                AppLog::GetInstance().addLog("Failed to write file: {}", destination);
                 zip.close();
                 return false;
             }
         }
         else {
-            AppLog::getInstance().add_log("Invalid zip entry: {}", zipPath);
+            AppLog::GetInstance().addLog("Invalid zip entry: {}", zipPath);
             zip.close();
             return false;
         }
@@ -790,10 +791,10 @@ namespace Roblox
         FS::RemovePath(path);
     }
 
-    std::vector<RobloxPackage> ProcessRobloxPackages()
+    std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages()
     {
         auto ProgIdNames = Native::GetProgIDNames();
-        std::vector<RobloxPackage> userInstancesVec;
+        std::unordered_map<std::string, Roblox::Instance> userInstancesMap;
 
         // Run the PowerShell command
         std::string output = Native::RunPowershellCommand("Get-AppxPackage ROBLOXCORPORATION.ROBLOX.* | Format-List -Property Name, PackageFullName, InstallLocation, PackageFamilyName, Version");
@@ -822,32 +823,25 @@ namespace Roblox
             if (std::regex_search(name, nameMatch, nameRegex) && nameMatch.size() == 2) {
                 std::string username = nameMatch[1].str();
 
-                // Using a lambda to check if a user with the same username already exists in the vector
-                auto userExists = [&userInstancesVec, &username]() {
-                    return std::any_of(userInstancesVec.begin(), userInstancesVec.end(), [&username](const RobloxPackage& instance) {
-                        return instance.Username == username;
-                        });
-                };
-
-                if (ProgIdNames.find(packageFullName) != ProgIdNames.end() && !userExists()) {
-                    RobloxPackage instance;
+                if (ProgIdNames.find(packageFullName) != ProgIdNames.end() && userInstancesMap.find(username) == userInstancesMap.end()) {
+                    Instance instance;
                     instance.Name = name;
-                    instance.Username = username;
                     instance.PackageID = packageFullName;
                     instance.AppID = ProgIdNames.at(packageFullName);
                     instance.InstallLocation = installLocation;
                     instance.PackageFamilyName = packageFamilyName;
                     instance.Version = version;
-                    userInstancesVec.push_back(instance);
+                    userInstancesMap[username] = instance;
                 }
             }
 
             searchStart = match.suffix().first;
         }
 
-        return userInstancesVec;
+        return userInstancesMap;
     }
 
+    /*
     std::vector<RobloxInstance> WrapPackages()
     {
         std::vector<RobloxPackage> packages = ProcessRobloxPackages();
@@ -869,8 +863,9 @@ namespace Roblox
 
         return instances;
     }
+    */
 
-    void LaunchRoblox(std::string AppID, const std::string& placeid)
+    DWORD LaunchRoblox(std::string AppID, std::string Username, const std::string& placeid)
     {
         std::string userSid = Native::GetUserSID();
         std::string userExperience = Native::GetUserExperience();
@@ -886,9 +881,23 @@ namespace Roblox
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 
         system(fmt::format("start roblox://placeId={}/", placeid).c_str());
+
+        for (int i = 0; i < 20; i++)
+        {
+            auto pids = Roblox::GetRobloxInstances();
+            for (auto pid : pids)
+            {
+                std::string command_line = Native::get_commandline_arguments(pid);
+                if (command_line.find(Username) != std::string::npos)
+                {
+                    return pid;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        }
     }
 
-    void LaunchRoblox(std::string AppID, const std::string& placeid, const std::string& linkcode)
+    DWORD LaunchRoblox(std::string AppID, std::string Username, const std::string& placeid, const std::string& linkcode)
     {
         std::string userSid = Native::GetUserSID();
         std::string userExperience = Native::GetUserExperience();
@@ -900,14 +909,26 @@ namespace Roblox
         std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
 
         Native::WriteProtocolKeys(AppID, protocol, Utils::GetHash(lower));
+        //call SHChangeNotify
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 
         std::string cmd = fmt::format("start roblox://placeId={}^&linkCode={}/", placeid, linkcode);
         system(cmd.c_str());
+
+        for (int i = 0; i < 5; i++)
+        {
+            auto pids = Roblox::GetRobloxInstances();
+            for (auto pid : pids)
+            {
+                std::string command_line = Native::get_commandline_arguments(pid);
+                if (command_line.find(Username) != std::string::npos)
+                {
+                    return pid;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        }
     }
-
-
-
 
     std::set<DWORD> GetRobloxInstances()
     {
@@ -1066,15 +1087,15 @@ namespace Roblox
         return codeValue;
     }
 
-    std::vector<RobloxInstance> GetNewInstances(const std::vector<RobloxInstance>& old_instances) {
-        std::vector<RobloxInstance> new_instances = Roblox::WrapPackages();
-        std::vector<RobloxInstance> result;
+    std::vector<std::string> GetNewInstances(const std::vector<std::string>& old_instances) {
+        std::vector<std::string> new_instances = g_InstanceControl.GetInstanceNames();
+        std::vector<std::string> result;
 
         // Check if an instance in new_instances is not present in old_instances
         for (const auto& new_instance : new_instances) {
             bool found = false;
             for (const auto& old_instance : old_instances) {
-                if (new_instance.Package.AppID == old_instance.Package.AppID) {
+                if (new_instance == old_instance) {
                     found = true;
                     break;
                 }
@@ -1446,21 +1467,33 @@ namespace Utils
 
     void UpdatePackage(const std::string& baseFolder, const std::string& instanceName) {
         // For Windows10Universal.zip
-        std::thread([&, baseFolder]() {
+        std::thread win10t([&, baseFolder]() {
             DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip", "Windows10Universal.zip");
             DecompressZip("Windows10Universal.zip", baseFolder + "\\Windows10Universal.exe");
-            }).detach();
+        });
 
-            // For CrashHandler.exe
-            std::thread([&, baseFolder]() {
-                DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe", "CrashHandler.exe");
-                CopyFileToDestination("CrashHandler.exe", baseFolder + "\\Assets\\CrashHandler.exe");
-                }).detach();
+        // For CrashHandler.exe
+        std::thread crasht([&, baseFolder]() {
+            DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe", "CrashHandler.exe");
+            CopyFileToDestination("CrashHandler.exe", baseFolder + "\\Assets\\CrashHandler.exe");
+        });
 
-                // For AppxManifest.xml
-                std::thread([&, baseFolder, instanceName]() {
-                    WriteAppxManifest("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml", baseFolder + "\\AppxManifest.xml");
-                    }).detach();
+        // For AppxManifest.xml
+        std::thread appxt([&, baseFolder, instanceName]() {
+            WriteAppxManifest("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml", baseFolder + "\\AppxManifest.xml");
+        });
+
+        win10t.join();
+
+        AppLog::GetInstance().addLog("Updated Windows10Universal");
+
+        crasht.join();
+
+        AppLog::GetInstance().addLog("Updated CrashHandler");
+
+        appxt.join();
+
+        AppLog::GetInstance().addLog("Updated AppxManifest");
     }
 
     bool SaveScreenshotAsPng(const char* filename)
