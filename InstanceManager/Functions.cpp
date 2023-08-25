@@ -1,5 +1,5 @@
 #define NOMINMAX
-#include "functions.h"
+#include "Functions.h"
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <fmt/format.h>
@@ -319,6 +319,21 @@ namespace ui
             ImGui::PopTextWrapPos();
             ImGui::EndTooltip();
         }
+    }
+
+    bool BeginSizedListBox(const char* label, float width_ratio, float height_ratio)
+    {
+        ImVec2 size = ImVec2(ImGui::GetContentRegionAvail().x * width_ratio, ImGui::GetContentRegionAvail().y * height_ratio);
+        return ImGui::BeginListBox(label, size);
+    }
+
+    unsigned int ImVec4ToUint32(const ImVec4& color)
+    {
+        uint8_t r = static_cast<uint8_t>(color.x * 255.0f);
+        uint8_t g = static_cast<uint8_t>(color.y * 255.0f);
+        uint8_t b = static_cast<uint8_t>(color.z * 255.0f);
+        uint8_t a = static_cast<uint8_t>(color.w * 255.0f);
+        return (a << 24) | (b << 16) | (g << 8) | r;
     }
 }
 
@@ -676,6 +691,47 @@ namespace Native
             !(mbi.Protect & PAGE_GUARD);
     }
 
+    bool IsProcessRunning(DWORD targetPid, const CHAR* expectedName)
+    {
+        DWORD aProcesses[1024], cbNeeded, cProcesses;
+
+        if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded)) {
+            return false;
+        }
+
+        cProcesses = cbNeeded / sizeof(DWORD);
+
+        for (unsigned int i = 0; i < cProcesses; i++) {
+            if (aProcesses[i] != targetPid) {
+                continue;
+            }
+
+            HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, targetPid);
+            if (NULL == hProcess) {
+                return false;
+            }
+
+            CHAR szProcessName[MAX_PATH] = "<unknown>";
+            HMODULE hMod;
+
+            if (EnumProcessModules(hProcess, &hMod, sizeof(hMod), &cbNeeded)) {
+                GetModuleBaseNameA(hProcess, hMod, szProcessName, sizeof(szProcessName) / sizeof(CHAR));
+            }
+
+            CloseHandle(hProcess);
+
+            if (strcmp(szProcessName, expectedName) == 0) {
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+
+
+        return false;
+    }
+
     std::string SearchEntireProcessMemory(HANDLE pHandle, const unsigned char* pattern, size_t patternSize, ExtractFunction extractFunction) {
         uintptr_t address = 0;
         MEMORY_BASIC_INFORMATION mbi = {};
@@ -788,7 +844,9 @@ namespace Roblox
         std::string cmd = "Get-AppxPackage -Name \"" + name + "\" | Remove-AppxPackage";
         Native::RunPowershellCommand(cmd);
 
-        FS::RemovePath(path);
+        std::thread([path]() {
+            FS::RemovePath(path);
+        }).detach();
     }
 
     std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages()

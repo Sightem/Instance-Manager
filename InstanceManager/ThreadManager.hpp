@@ -28,26 +28,30 @@ public:
                 std::async(std::launch::async, [this, id, task, flag]() {
                     task(*flag);
 
-                    // Update the completed tasks count and check if we should call the callback
                     std::unique_lock lock(smtx);
                     tasks_map[id].completed += 1;
-                    if (tasks_map[id].total == tasks_map[id].completed && callbacks_map.find(id) != callbacks_map.end()) {
-                        callbacks_map[id]();  // Call the callback
+                    if (tasks_map[id].total == tasks_map[id].completed) {
+                        if (callbacks_map.find(id) != callbacks_map.end()) {
+                            callbacks_map[id]();  // Call the callback
+                            callbacks_map.erase(id);
+                        }
+                        tasks_map.erase(id);
+                        termination_flags.erase(id);
                     }
                     })
             );
+
+            cleanup_futures();
     }
 
     void submit_task(const std::string& id,
         std::function<void()> simpleTask,
         std::function<void()> callback = nullptr) {
-        // Wrap the simpleTask to match the signature of the tasks that accept terminateFlag
         auto wrappedTask = [simpleTask](const std::atomic<bool>&) {
             simpleTask();
         };
         submit_task(id, wrappedTask, callback);
     }
-
 
     void terminate_task(const std::string& id) {
         std::shared_lock lock(smtx);
@@ -77,6 +81,15 @@ private:
         int total = 0;
         int completed = 0;
     };
+
+    void cleanup_futures() {
+        std::unique_lock lock(smtx);
+        futures.erase(std::remove_if(futures.begin(), futures.end(),
+            [](const std::future<void>& fut) {
+                return fut.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+            }),
+            futures.end());
+    }
 
     std::unordered_map<std::string, TaskInfo> tasks_map;
     std::unordered_map<std::string, std::function<void()>> callbacks_map;

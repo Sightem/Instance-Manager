@@ -17,16 +17,20 @@ public:
 
 	bool terminate();
 
+	bool Inject(std::string path);
+
 	int64_t GetLifeTime() const;
 
 	DWORD GetPID() const { return this->m_Pid; }
 
+	std::string GetUsername() const { return this->m_Username; }
+
 private:
-	std::mutex mutex;
-	DWORD m_Pid = 0;
 	std::string m_PlaceID;
 	std::string m_LinkCode;
-	Roblox::Instance m_Instance;
 	std::string m_Username;
+	std::mutex mutex;
+	DWORD m_Pid = 0;
+	Roblox::Instance m_Instance;
 	std::chrono::system_clock::time_point m_CreationTime;
 };

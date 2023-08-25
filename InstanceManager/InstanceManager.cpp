@@ -14,13 +14,13 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "Functions.h"
-#include "request.hpp"
 #include "AppLog.hpp"
 #include "ThreadManager.hpp"
 #include "Config.hpp"
 #include "MouseController.hpp"
 #include "FileManagement.hpp"
 #include "InstanceControl.h"
+#include "AutoRelaunch.hpp"
 
 std::vector<std::string> g_InstanceNames = g_InstanceControl.GetInstanceNames();
 std::vector<bool> g_Selection;
@@ -46,6 +46,8 @@ public:
 			nlohmann::json j;
 			j["lastPlaceID"] = "";
 			j["lastVip"] = "";
+			j["lastDelay"] = "";
+			j["lastInterval"] = "";
 
 			//save to file
 			ofs << j.dump(4);
@@ -54,8 +56,8 @@ public:
 			ofs.close();
 		}
 
-		//load config.json
-		Config::getInstance().load("config.json");
+		// load config.json
+		Config::getInstance().Load("config.json");
     }
 
     // Anything that needs to be called cyclically INSIDE of the main application loop
@@ -63,7 +65,7 @@ public:
     {
 		ImGui::Begin("Instance Manager", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNav);
 
-		static auto& config = Config::getInstance().get();
+		static auto& config = Config::getInstance().Get();
 		static int lastSelectedIndex = -1;
 		if (g_Selection.size() != g_InstanceNames.size())
 		{
@@ -101,10 +103,10 @@ public:
 
 					if (g_InstanceControl.IsInstanceRunning(g_InstanceNames[n]))
 					{
-						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(40, 170, 40, 255)); // Set color for the bullet
-						ImGui::Bullet();  // Draw a bullet
-						ImGui::PopStyleColor();  // Reset color to default
-						ImGui::SameLine();  // Ensure the next item is on the same line as the bullet
+						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(40, 170, 40, 255));
+						ImGui::Bullet();
+						ImGui::PopStyleColor();
+						ImGui::SameLine();
 
 						// Check if the bullet is hovered
 						if (ImGui::IsItemHovered())
@@ -114,19 +116,34 @@ public:
 							ImGui::EndTooltip();
 						}
 					}
-					else
+					else // fucking cursed
 					{
-						ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(77, 77, 77, 255)); // Set color for the bullet
+						auto groupColor = g_InstanceControl.IsGrouped(g_InstanceNames[n]);
+
+						ImGui::PushStyleColor(ImGuiCol_Text, groupColor);
 						ImGui::Bullet();
 						ImGui::PopStyleColor();
 						ImGui::SameLine();
 
-						// Check if the bullet is hovered
-						if (ImGui::IsItemHovered())
+						//check if color is 77,77,77,255 (grey)
+						if (groupColor == IM_COL32(77, 77, 77, 255))
 						{
-							ImGui::BeginTooltip();
-							ImGui::Text("Instance has not been launched.");
-							ImGui::EndTooltip();
+							if (ImGui::BeginItemTooltip())
+							{
+								ImGui::Text("Instance has not been launched.");
+
+								ImGui::EndTooltip();
+							}
+						}
+						else
+						{
+							// Check if the bullet is hovered
+							if (ImGui::BeginItemTooltip())
+							{
+								ImGui::Text("Instance has been launched.");
+
+								ImGui::EndTooltip();
+							}
 						}
 					}
 
@@ -257,6 +274,9 @@ public:
 		ImGui::End();
 
 		m_FileManagement.draw("File Management");
+		m_AutoRelaunch.draw("Auto Relaunch");
+
+		//ImGui::ShowDemoWindow();
     }
 
     // The callbacks are updated and called BEFORE the Update loop is entered
@@ -295,6 +315,7 @@ private:
 	ThreadManager m_ThreadManager;
 	QueuedThreadManager m_QueuedThreadManager;
 	FileManagement m_FileManagement = FileManagement(g_InstanceNames, g_Selection);
+	AutoRelaunch m_AutoRelaunch = AutoRelaunch(g_InstanceNames);
 
 	void RenderProcessControl()
 	{
@@ -468,15 +489,9 @@ private:
 
 		}
 
-		if (placeid != Config::getInstance().get()["lastPlaceID"] || linkcode != Config::getInstance().get()["lastVip"])
-		{
-			std::thread([placeid, linkcode]() {
-				auto& config = Config::getInstance().get();
-				config["lastPlaceID"] = placeid;
-				config["lastVip"] = linkcode;
-				Config::getInstance().save("config.json");
-				}).detach();
-		}
+		auto& config = Config::getInstance().Get();
+		config["lastPlaceID"] = placeid;
+		config["lastVip"] = linkcode;
 	}
 
 
@@ -644,8 +659,6 @@ private:
 		if (ui::ConditionalButton("Create instance", !(instanceNameBuf.empty() || StringUtils::contains_only(instanceNameBuf, '\0')), ui::ButtonStyle::Green))
 		{
 			AppLog::GetInstance().addLog("Creating instance...");
-
-			std::vector<std::string> existing_instances = g_InstanceNames;
 
 			auto completionCallback = [&]() {
 				AppLog::GetInstance().addLog("Instance created");

@@ -27,3 +27,7 @@ instances/
 /InstanceManager/config.json
 /InstanceManager/x64/Release
 /x64/Release
+/InstanceManager/Release
+/x84-injector/Release/x86-injector.tlog
+/x84-injector/Release
+/x84-injector/x64/Release

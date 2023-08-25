@@ -43,6 +43,10 @@ namespace ui
     bool GreenButton(const char* label);
     bool RedButton(const char* label);
     void HelpMarker(const char* desc);
+    bool BeginSizedListBox(const char* label, float width_ratio, float height_ratio);
+
+    unsigned int ImVec4ToUint32(const ImVec4& color);
+
 }
 
 namespace Native
@@ -59,6 +63,7 @@ namespace Native
     bool OpenInExplorer(const std::string& path, bool isFile = false);
     bool SetProcessAffinity(DWORD processID, DWORD requestedCores);
     bool IsReadableMemory(const MEMORY_BASIC_INFORMATION& mbi);
+    bool IsProcessRunning(DWORD targetPid, const CHAR* expectedName);
 
     typedef std::string(*ExtractFunction)(const unsigned char*, size_t);
     std::string SearchEntireProcessMemory(HANDLE pHandle, const unsigned char* pattern, size_t patternSize, ExtractFunction extractFunction);
