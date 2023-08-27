@@ -6,10 +6,6 @@ Instance-Manager/Template/
 instances/
 
 # Files
-*.vcxproj
-*.vcxproj.user
-*.vcxproj.filters
-*.sln
 *.exe
 *.zip
 

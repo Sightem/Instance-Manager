@@ -16,7 +16,8 @@
 
 namespace Native
 {
-    std::string RunPowershellCommand(const std::string& command);
+    template <bool CaptureOutput = true>
+    std::conditional_t<CaptureOutput, std::string, void> RunPowershellCommand(const std::string& command);
     winrt::com_ptr<IShellItemArray> CreateShellItemArrayFromProtocol(const winrt::hstring& protocolURI);
     DWORD LaunchUWPAppWithProtocol(const winrt::hstring& appID, const winrt::hstring& protocolURI);
     std::string GetCurrentUsername();

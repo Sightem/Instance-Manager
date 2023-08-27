@@ -24,6 +24,7 @@ public:
 
 	ImU32 GetColor();
 
+	void RemoveAccount(const std::string& username);
 private:
 	std::unordered_map<std::string, std::shared_ptr<Manager>> m_Managers;
 

@@ -10,7 +10,8 @@
 
 namespace Native
 {
-    std::string RunPowershellCommand(const std::string& command) {
+    template <bool CaptureOutput>
+    std::conditional_t<CaptureOutput, std::string, void> RunPowershellCommand(const std::string& command) {
         SECURITY_ATTRIBUTES security_attributes;
         ZeroMemory(&security_attributes, sizeof(security_attributes));
         security_attributes.nLength = sizeof(security_attributes);
@@ -19,16 +20,21 @@ namespace Native
         HANDLE stdout_read = NULL;
         HANDLE stdout_write = NULL;
 
-        if (!CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0)) {
-            AppLog::GetInstance().AddLog("Failed to create pipe");
-            return "";
+        if constexpr (CaptureOutput) {
+            if (!CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0)) {
+                AppLog::GetInstance().AddLog("Failed to create pipe");
+                if constexpr (CaptureOutput) return "";
+                else return;
+            }
         }
 
         STARTUPINFO startup_info;
         ZeroMemory(&startup_info, sizeof(startup_info));
         startup_info.cb = sizeof(startup_info);
-        startup_info.hStdError = stdout_write;
-        startup_info.hStdOutput = stdout_write;
+        if constexpr (CaptureOutput) {
+            startup_info.hStdError = stdout_write;
+            startup_info.hStdOutput = stdout_write;
+        }
         startup_info.dwFlags |= STARTF_USESTDHANDLES;
 
         PROCESS_INFORMATION process_info;
@@ -38,26 +44,33 @@ namespace Native
 
         if (!CreateProcess(NULL, &cmd_line[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &startup_info, &process_info)) {
             AppLog::GetInstance().AddLog("Failed to create process");
-            return "";
+            if constexpr (CaptureOutput) return "";
+            else return;
         }
 
-        CloseHandle(stdout_write);
+        if constexpr (CaptureOutput) {
+            CloseHandle(stdout_write);
 
-        constexpr size_t buffer_size = 4096;
-        std::array<char, buffer_size> buffer;
-        std::string output;
+            constexpr size_t buffer_size = 4096;
+            std::array<char, buffer_size> buffer;
+            std::string output;
 
-        DWORD bytes_read;
-        while (ReadFile(stdout_read, buffer.data(), buffer_size, &bytes_read, NULL)) {
-            output.append(buffer.data(), bytes_read);
+            DWORD bytes_read;
+            while (ReadFile(stdout_read, buffer.data(), buffer_size, &bytes_read, NULL)) {
+                output.append(buffer.data(), bytes_read);
+            }
+
+            CloseHandle(stdout_read);
+
+            return output;
         }
 
-        CloseHandle(stdout_read);
         CloseHandle(process_info.hProcess);
         CloseHandle(process_info.hThread);
 
-        return output;
+        if constexpr (!CaptureOutput) return;
     }
+
 
     winrt::com_ptr<IShellItemArray> CreateShellItemArrayFromProtocol(const winrt::hstring& protocolURI) {
         winrt::com_ptr<IShellItem> shellItem;
@@ -313,3 +326,7 @@ namespace Native
         return "";
     }
 }
+
+//i hate this fucking language
+template std::string Native::RunPowershellCommand<true>(const std::string& command);
+template void Native::RunPowershellCommand<false>(const std::string& command);

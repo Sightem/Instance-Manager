@@ -84,3 +84,8 @@ ImU32 Group::GetColor()
 {
 	return m_Color;
 }
+
+void Group::RemoveAccount(const std::string& username)
+{
+	m_Managers.erase(username);
+}

@@ -224,9 +224,6 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 
 		if (ImGui::Button("Create Group", ImVec2(ImGui::GetContentRegionAvail().x, 0)))
 		{
-			m_Groups.push_back(groupName);
-			m_GroupSelection.push_back(false);
-
 			std::vector<std::string> selectedInstances;
 			for (int i = 0; i < m_InstanceSelection.size(); ++i)
 			{
@@ -236,8 +233,18 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 				}
 			}
 
-			// Dont care
-			g_InstanceControl.CreateGroup(groupName, selectedInstances, PlaceID, vipCode, std::string(szFile), strlen(launchDelay) == 0 ? 0 : atoi(launchDelay), strlen(relaunchInterval) == 0 ? 0 : atoi(relaunchInterval), ui::ImVec4ToUint32(color));
+			if (std::find(m_Groups.begin(), m_Groups.end(), groupName) != m_Groups.end())
+			{
+				// TODO: handle inserting into existing group
+			}
+			else
+			{
+				m_Groups.push_back(groupName);
+				m_GroupSelection.push_back(false);
+	
+				// Dont care
+				g_InstanceControl.CreateGroup(groupName, selectedInstances, PlaceID, vipCode, std::string(szFile), strlen(launchDelay) == 0 ? 0 : atoi(launchDelay), strlen(relaunchInterval) == 0 ? 0 : atoi(relaunchInterval), ui::ImVec4ToUint32(color));
+			}
 
 			Config::getInstance().UpdateConfig<std::string>("lastPlaceID", PlaceID);
 			Config::getInstance().UpdateConfig<std::string>("lastVip", vipCode);

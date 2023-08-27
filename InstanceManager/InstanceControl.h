@@ -66,7 +66,7 @@ private:
 	std::unordered_map<std::string, std::shared_ptr<Group>> m_Groups;
 
 
-	std::thread* m_InstanceThread = nullptr;
+ 	std::thread* m_InstanceThread = nullptr;
 };
 
 extern InstanceControl& g_InstanceControl;

@@ -6,6 +6,8 @@
 #include <ranges>
 #include <future>
 #include <thread>
+#include <algorithm>
+#include <cctype>
 #include <fmt/format.h>
 #include <fmt/core.h>
 #include <fmt/chrono.h>
@@ -41,6 +43,14 @@ public:
     // Anything that needs to be called once OUTSIDE of the main application loop
     void StartUp()
     {
+		std::ranges::sort(g_InstanceNames, [](const std::string& a, const std::string& b) {
+			return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(),
+			[](char ca, char cb) {
+					return std::tolower(ca) < std::tolower(cb);
+				}
+			);
+		});
+
 		// Create the instances directory if it doesn't exist
 		std::filesystem::create_directory("instances");
 
@@ -65,7 +75,6 @@ public:
 		Config::getInstance().Load("config.json");
     }
 
-    // Anything that needs to be called cyclically INSIDE of the main application loop
     void Update()
     {
 		ImGui::Begin("Instance Manager", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNav);
@@ -145,7 +154,7 @@ public:
 							// Check if the bullet is hovered
 							if (ImGui::BeginItemTooltip())
 							{
-								ImGui::Text("Instance has been launched.");
+								ImGui::Text("Instance is being Auto Relaunched");
 
 								ImGui::EndTooltip();
 							}
@@ -534,11 +543,8 @@ private:
 		if (ui::RedButton("Terminate"))
 		{
 			ForEachSelectedInstance([](int idx) {
-				if (g_InstanceControl.IsInstanceRunning(g_InstanceNames[idx]))
-				{
-					AppLog::GetInstance().AddLog("Terminating {}", g_InstanceNames[idx]);
-					g_InstanceControl.TerminateInstance(g_InstanceNames[idx]);
-				}
+				AppLog::GetInstance().AddLog("Terminating {}", g_InstanceNames[idx]);
+				g_InstanceControl.TerminateInstance(g_InstanceNames[idx]);
 			});
 		}
 	}
@@ -663,10 +669,26 @@ private:
 		{
 			AppLog::GetInstance().AddLog("Creating instance...");
 
-			auto completionCallback = [&]() {
+			auto completionCallback = [=]() {
 				AppLog::GetInstance().AddLog("Instance created");
 				std::vector<std::string> new_instances = Roblox::GetNewInstances(g_InstanceNames);
-				g_InstanceNames.insert(g_InstanceNames.end(), new_instances.begin(), new_instances.end());
+
+				for (const auto& str : new_instances) {
+					auto pos = std::lower_bound(g_InstanceNames.begin(), g_InstanceNames.end(), str,
+						[](const std::string& a, const std::string& b) {
+							return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(),
+							[](char ca, char cb) {
+									return std::tolower(ca) < std::tolower(cb);
+								}
+							);
+						}
+					);
+
+					// Insert the new instance at the correct position
+					g_InstanceNames.insert(pos, str);
+				}
+
+				//g_InstanceNames.insert(g_InstanceNames.end(), new_instances.begin(), new_instances.end());
 				g_Selection.resize(g_InstanceNames.size(), false);
 			};
 
@@ -701,7 +723,7 @@ private:
 				auto callback = [idx]() {
 					std::string abs_path = std::filesystem::absolute(g_InstanceControl.GetInstance(g_InstanceNames[idx]).InstallLocation + "\\AppxManifest.xml").string();
 					std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
-					Native::RunPowershellCommand(cmd);
+					Native::RunPowershellCommand<false>(cmd);
 					AppLog::GetInstance().AddLog("Update Done");
 				};
 				this->m_QueuedThreadManager.submit_task(fmt::format("updateinstances{}", idx), [idx]() {

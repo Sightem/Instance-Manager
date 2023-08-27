@@ -20,12 +20,13 @@ namespace Roblox
     void NukeInstane(const std::string name, const std::string path)
     {
         std::string cmd = "Get-AppxPackage -Name \"" + name + "\" | Remove-AppxPackage";
-        Native::RunPowershellCommand(cmd);
+        Native::RunPowershellCommand<false>(cmd);
 
         std::thread([path]() {
             FS::RemovePath(path);
             }).detach();
     }
+
 
     std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages() {
         std::unordered_map<std::string, Roblox::Instance> instancesMap;
@@ -81,6 +82,10 @@ namespace Roblox
         catch (const winrt::hresult_error& ex) {
             std::wcerr << L"WinRT error: " << ex.message().c_str() << std::endl;
         }
+
+        if (instancesMap.find("ROBLOX") != instancesMap.end()) {
+			instancesMap.erase("ROBLOX");
+		}
 
         return instancesMap;
     }

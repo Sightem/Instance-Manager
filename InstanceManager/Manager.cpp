@@ -5,7 +5,7 @@
 #include "Native.h"
 
 template<typename... Args>
-DWORD LaunchRoblox(const std::string& AppID, const std::string& placeid, Args... args) {
+DWORD LaunchRoblox(std::string AppID, const std::string& placeid, Args... args) {
 	auto protocolStringGenerator = [&]() {
 		if constexpr (sizeof...(Args) == 0)
 			return "roblox://placeId=" + placeid;

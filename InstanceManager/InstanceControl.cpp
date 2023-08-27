@@ -31,14 +31,30 @@ bool InstanceControl::TerminateInstance(const std::string& username)
 {
 	if (m_LaunchedInstances.find(username) == m_LaunchedInstances.end())
 	{
-		return false;
+
+		if (IsGrouped(username))
+		{
+			for (auto& group : m_Groups)
+			{
+				if (group.second->GetColorForManagedAccount(username).has_value())
+				{
+					group.second->RemoveAccount(username);
+				}
+			}
+
+		}
+
+		return true;
+	}
+	else
+	{
+		auto& manager = m_LaunchedInstances[username];
+		manager->terminate();
+
+		m_LaunchedInstances.erase(username);
+		return true;
 	}
 
-	auto& manager = m_LaunchedInstances[username];
-	manager->terminate();
-
-	m_LaunchedInstances.erase(username);
-	return true;
 }
 
 bool InstanceControl::IsInstanceRunning(const std::string& username)
@@ -110,7 +126,9 @@ bool InstanceControl::CreateInstance(const std::string& username)
 
 	std::string abs_path = std::filesystem::absolute(path + "\\AppxManifest.xml").string();
 	std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
-	Native::RunPowershellCommand(cmd);
+	Native::RunPowershellCommand<false>(cmd);
+
+	std::this_thread::sleep_for(std::chrono::seconds(2));
 
 	instances = Roblox::ProcessRobloxPackages();
 
