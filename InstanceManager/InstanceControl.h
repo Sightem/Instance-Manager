@@ -1,12 +1,12 @@
 #pragma once
 #include <string>
-#include <Windows.h>
 #include <unordered_map>
 #include <memory>
 #include <vector>
 #include "Manager.h"
-#include "Functions.h"
 #include "Group.h"
+#include "Roblox.h"
+#include "Native.h"
 
 class InstanceControl
 {

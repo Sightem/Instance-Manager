@@ -1,14 +1,39 @@
 #include "Manager.h"
 
+#include "AppLog.h"
+
+#include "Native.h"
+
+template<typename... Args>
+DWORD LaunchRoblox(const std::string& AppID, const std::string& placeid, Args... args) {
+	auto protocolStringGenerator = [&]() {
+		if constexpr (sizeof...(Args) == 0)
+			return "roblox://placeId=" + placeid;
+		else if constexpr (sizeof...(Args) == 1)
+			return fmt::format("roblox://placeId={}&linkCode={}", placeid, args...);
+	};
+
+	std::string protocolString = protocolStringGenerator();
+	winrt::hstring protocolURI = winrt::to_hstring(protocolString);
+
+	winrt::hstring hAppID = winrt::to_hstring(AppID);
+
+	DWORD pid = -1;
+
+	pid = Native::LaunchUWPAppWithProtocol(hAppID, protocolURI);
+	if (pid <= 0) {
+		AppLog::GetInstance().AddLog("Failed to launch Roblox with AppID: {}", AppID);
+	}
+
+	return pid;
+}
+
 bool Manager::start()
 {
 	std::scoped_lock lock(this->mutex);
 	DWORD procID;
 	
-	if (m_LinkCode.empty())
-		procID = Roblox::LaunchRoblox(this->m_Instance.AppID, this->m_Username, this->m_PlaceID);
-	else
-		procID = Roblox::LaunchRoblox(this->m_Instance.AppID, this->m_Username, this->m_PlaceID, this->m_LinkCode);
+	procID = LaunchRoblox(this->m_Instance.AppID, this->m_PlaceID, this->m_LinkCode);
 
 	if (procID != -1)
 	{
@@ -51,19 +76,19 @@ bool Manager::Inject(std::string path)
 
 	// Start the child process.
 	if (!CreateProcessA(
-		nullptr,                // No module name (use command line)
-		&commandLine[0],        // Command line
-		nullptr,                // Process handle not inheritable
-		nullptr,                // Thread handle not inheritable
-		FALSE,                  // Set handle inheritance to FALSE
-		0,                      // No creation flags
-		nullptr,                // Use parent's environment block
-		nullptr,                // Use parent's starting directory
-		&si,                    // Pointer to STARTUPINFO structure
-		&pi                     // Pointer to PROCESS_INFORMATION structure
+		nullptr,
+		&commandLine[0],
+		nullptr,
+		nullptr,
+		FALSE,
+		0,
+		nullptr,
+		nullptr,
+		&si,
+		&pi
 	)) {
-		std::cerr << "CreateProcess failed (" << GetLastError() << ")\n";
-		return -1;
+		AppLog::GetInstance().AddLog("CreateProcess failed ({})", GetLastError());
+		return false;
 	}
 
 	// Wait until child process exits.
@@ -72,6 +97,8 @@ bool Manager::Inject(std::string path)
 	// Close process and thread handles.
 	CloseHandle(pi.hProcess);
 	CloseHandle(pi.hThread);
+
+	return true;
 }
 
 int64_t Manager::GetLifeTime() const
@@ -79,4 +106,9 @@ int64_t Manager::GetLifeTime() const
 	auto now = std::chrono::system_clock::now();
 	auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - this->m_CreationTime);
 	return elapsed.count();
+}
+
+bool Manager::IsRunning() const
+{
+	return this->m_Pid != -1 && Native::IsProcessRunning(this->m_Pid, "Windows10Universal.exe");
 }

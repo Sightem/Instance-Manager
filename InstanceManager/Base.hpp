@@ -277,5 +277,5 @@ public:
 
 private:
     GLFWwindow* window = nullptr;
-    ImVec4 clear_color = ImVec4(0.1058, 0.1137f, 0.1255f, 1.00f);
+    ImVec4 clear_color = ImVec4(0.1058f, 0.1137f, 0.1255f, 1.00f);
 };

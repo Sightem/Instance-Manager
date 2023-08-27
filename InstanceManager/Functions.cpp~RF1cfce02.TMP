@@ -1,16 +1,28 @@
 #define NOMINMAX
+#include <map>
+#include <regex>
+#include <locale>
+#include <codecvt>
+
 #include "Functions.h"
+#include "md5.h"
+#include "AppLog.hpp"
+#include "InstanceControl.h"
+
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <fmt/format.h>
 #include <cpr/cpr.h>
 #include <tinyxml2.h>
 #include <nlohmann/json.hpp>
-#include "md5.h"
-#include <map>
-#include "request.hpp"
-#include "AppLog.hpp"
-#include "InstanceControl.h"
+
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.Management.Deployment.h>
+#include <winrt/Windows.ApplicationModel.h>
+#include <winrt/Windows.ApplicationModel.Core.h>
+#include <winrt/Windows.ApplicationModel.Store.h>
+#include <winrt/Windows.Storage.h>
 
 #define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
 
@@ -389,6 +401,47 @@ namespace Native
         return output;
     }
 
+    winrt::com_ptr<IShellItemArray> CreateShellItemArrayFromProtocol(const winrt::hstring& protocolURI) {
+        winrt::com_ptr<IShellItem> shellItem;
+        HRESULT hr = SHCreateItemFromParsingName(protocolURI.c_str(), nullptr, IID_PPV_ARGS(&shellItem));
+        if (FAILED(hr)) {
+            return nullptr;
+        }
+
+        winrt::com_ptr<IShellItemArray> shellItemArray;
+        hr = SHCreateShellItemArrayFromShellItem(shellItem.get(), IID_PPV_ARGS(&shellItemArray));
+        if (FAILED(hr)) {
+            return nullptr;
+        }
+
+        return shellItemArray;
+    }
+
+    DWORD LaunchUWPAppWithProtocol(const winrt::hstring& appID, const winrt::hstring& protocolURI) {
+        winrt::com_ptr<IApplicationActivationManager> pAAM;
+        HRESULT hr = CoCreateInstance(CLSID_ApplicationActivationManager, NULL, CLSCTX_LOCAL_SERVER, IID_PPV_ARGS(&pAAM));
+        if (FAILED(hr)) {
+            AppLog::GetInstance().addLog("Failed to create IApplicationActivationManager instance. Error code: {}", hr);
+            return 0;
+        }
+
+        auto shellItemArray = CreateShellItemArrayFromProtocol(protocolURI);
+        if (!shellItemArray) {
+            AppLog::GetInstance().addLog("Failed to create IShellItemArray from protocol URI.");
+            return 0;
+        }
+
+        DWORD dwPID = 0;
+        hr = pAAM->ActivateForProtocol(appID.c_str(), shellItemArray.get(), &dwPID);
+
+        if (FAILED(hr)) {
+            AppLog::GetInstance().addLog("Failed to activate UWP app. Error code: {}", hr);
+            return 0;
+        }
+
+        return dwPID;
+    }
+
     std::string GetCurrentUsername() {
         char username[UNLEN + 1];
         DWORD username_len = UNLEN + 1;
@@ -399,6 +452,31 @@ namespace Native
 
         return "";
     }
+
+    std::set<DWORD> GetInstancesOf(const char* exeName)
+    {
+        std::set<DWORD> pidSet;
+        PROCESSENTRY32 entry;
+        entry.dwSize = sizeof(PROCESSENTRY32);
+
+        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+
+        if (Process32First(snapshot, &entry) == TRUE)
+        {
+            while (Process32Next(snapshot, &entry) == TRUE)
+            {
+                if (strcmp(entry.szExeFile, exeName) == 0)
+                {
+                    pidSet.insert(entry.th32ProcessID);
+                }
+            }
+        }
+
+        CloseHandle(snapshot);
+
+        return pidSet;
+    }
+
 
     std::string GetUserSID() {
         HANDLE hToken = NULL;
@@ -517,22 +595,6 @@ namespace Native
         return ss.str();
     }
 
-    void WriteProtocolKeys(const std::string& progId, const std::string& protocol, const std::string& progHash)
-    {
-        HKEY hKey;
-        std::string keyName = "Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\" + protocol + "\\UserChoice";
-        DWORD disposition;
-
-        if (RegCreateKeyExA(HKEY_CURRENT_USER, keyName.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, nullptr, &hKey, &disposition) == ERROR_SUCCESS)
-        {
-            RegSetKeyValueA(hKey, nullptr, "Hash", REG_SZ, progHash.c_str(), progHash.size() + 1);
-
-            RegSetKeyValueA(hKey, nullptr, "ProgId", REG_SZ, progId.c_str(), progId.size() + 1);
-
-            RegCloseKey(hKey);
-        }
-    }
-
     std::map<std::string, std::string> GetProgIDNames()
     {
         HKEY hKey;
@@ -599,7 +661,7 @@ namespace Native
         return pbi.PebBaseAddress;
     }
 
-    std::string get_commandline_arguments(DWORD pid)
+    std::string GetCommandlineArguments(DWORD pid)
     {
         HANDLE processHandle;
         PVOID pebAddress;
@@ -640,17 +702,19 @@ namespace Native
             return std::string();
         }
 
-        std::string command_line_str(commandLineContents, commandLineContents + commandLine.Length / 2);
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+        std::string command_line_str = converter.to_bytes(commandLineContents);
         CloseHandle(processHandle);
         free(commandLineContents);
 
         return command_line_str;
     }
 
+
     bool OpenInExplorer(const std::string& path, bool isFile) {
         std::string cmd = isFile ? "/select," + path : path;
         HINSTANCE result = ShellExecute(0, "open", "explorer.exe", cmd.c_str(), 0, SW_SHOW);
-        return (int)result > 32;
+        return (INT_PTR)result > 32;
     }
 
     bool SetProcessAffinity(DWORD processID, DWORD requestedCores)
@@ -732,6 +796,36 @@ namespace Native
         return false;
     }
 
+    BOOL TerminateProcessByName(const char* processName)
+    {
+        DWORD processes[1024], numProcesses;
+        unsigned int i;
+
+        if (!EnumProcesses(processes, sizeof(processes), &numProcesses)) {
+            return FALSE;
+        }
+
+        numProcesses /= sizeof(DWORD);
+
+        for (i = 0; i < numProcesses; i++) {
+            if (processes[i] != 0) {
+                HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_TERMINATE, FALSE, processes[i]);
+                if (hProcess) {
+                    char processNameInList[MAX_PATH];
+
+                    if (GetModuleBaseName(hProcess, 0, processNameInList, sizeof(processNameInList) / sizeof(char))) {
+                        if (strcmp(processNameInList, processName) == 0) {
+                            TerminateProcess(hProcess, 0);
+                        }
+                    }
+                    CloseHandle(hProcess);
+                }
+            }
+        }
+
+        return TRUE;
+    }
+
     std::string SearchEntireProcessMemory(HANDLE pHandle, const unsigned char* pattern, size_t patternSize, ExtractFunction extractFunction) {
         uintptr_t address = 0;
         MEMORY_BASIC_INFORMATION mbi = {};
@@ -761,7 +855,7 @@ namespace Native
 
 namespace StringUtils
 {
-    bool contains_only(const std::string& s, char c) {
+    bool ContainsOnly(const std::string& s, char c) {
         return s.find_first_not_of(c) == std::string::npos;
     }
 
@@ -806,27 +900,6 @@ namespace StringUtils
         return true;
     }
 
-    std::string Base64Encode(const unsigned char* buffer, size_t length)
-    {
-        BIO* bio, * b64;
-        long len;
-
-        b64 = BIO_new(BIO_f_base64());
-        bio = BIO_new(BIO_s_mem());
-        bio = BIO_push(b64, bio);
-
-        BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-        BIO_write(bio, buffer, length);
-        BIO_flush(bio);
-
-        len = BIO_get_mem_data(bio, &buffer);
-
-        std::string result(reinterpret_cast<const char*>(buffer), len);
-
-        BIO_free_all(bio);
-        return result;
-    }
-
     std::string WStrToStr(const std::wstring& wstr)
     {
         int numBytes = WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
@@ -834,7 +907,6 @@ namespace StringUtils
         WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), -1, buffer.data(), numBytes, NULL, NULL);
         return std::string(buffer.data());
     }
-
 }
 
 namespace Roblox
@@ -849,178 +921,62 @@ namespace Roblox
         }).detach();
     }
 
-    std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages()
-    {
-        auto ProgIdNames = Native::GetProgIDNames();
-        std::unordered_map<std::string, Roblox::Instance> userInstancesMap;
+    std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages() {
+        std::unordered_map<std::string, Roblox::Instance> instancesMap;
 
-        // Run the PowerShell command
-        std::string output = Native::RunPowershellCommand("Get-AppxPackage ROBLOXCORPORATION.ROBLOX.* | Format-List -Property Name, PackageFullName, InstallLocation, PackageFamilyName, Version");
+        winrt::Windows::Management::Deployment::PackageManager packageManager;
 
-        // Split the output into lines
-        std::stringstream ss(output);
-        std::string line;
+        try {
+            for (const auto& package : packageManager.FindPackages()) {
+                // Check Publisher ID
+                std::wstring publisherID = package.Id().PublisherId().c_str();
+                if (publisherID == L"55nm5eh3cm0pr") {
+                    Roblox::Instance instance;
 
-        std::regex pattern(R"(Name\s*:\s*(.+)\s*PackageFullName\s*:\s*(.+)\s*InstallLocation\s*:\s*([^\n]+(?:\n\s{20}[^\n]+)*)\s*PackageFamilyName\s*:\s*(.+)\s*Version\s*:\s*(.+))");
-        std::smatch match;
-
-        std::string::const_iterator searchStart(output.cbegin());
-
-        while (std::regex_search(searchStart, output.cend(), match, pattern)) {
-            std::string name = match[1].str();
-            std::string packageFullName = match[2].str();
-            std::string installLocationRaw = match[3].str();
-            std::string installLocation = std::regex_replace(installLocationRaw, std::regex("\n\\s{20}"), "");
-            installLocation.erase(std::remove(installLocation.begin(), installLocation.end(), '\r'), installLocation.end());
-            std::string packageFamilyName = match[4].str();
-            std::string version = match[5].str();
-
-            std::regex nameRegex("\\.ROBLOX\\.([\\w+-]+)");
-            std::smatch nameMatch;
-
-            if (std::regex_search(name, nameMatch, nameRegex) && nameMatch.size() == 2) {
-                std::string username = nameMatch[1].str();
-
-                if (ProgIdNames.find(packageFullName) != ProgIdNames.end() && userInstancesMap.find(username) == userInstancesMap.end()) {
-                    Instance instance;
-                    instance.Name = name;
-                    instance.PackageID = packageFullName;
-                    instance.AppID = ProgIdNames.at(packageFullName);
-                    instance.InstallLocation = installLocation;
-                    instance.PackageFamilyName = packageFamilyName;
-                    instance.Version = version;
-                    userInstancesMap[username] = instance;
-                }
-            }
-
-            searchStart = match.suffix().first;
-        }
-
-        return userInstancesMap;
-    }
-
-    /*
-    std::vector<RobloxInstance> WrapPackages()
-    {
-        std::vector<RobloxPackage> packages = ProcessRobloxPackages();
-
-        std::vector<RobloxInstance> instances;
-
-        for (const auto& package : packages) {
-            RobloxInstance instance;
-            instance.Package.Name = package.Name;
-            instance.Package.Username = package.Username;
-            instance.Package.PackageID = package.PackageID;
-            instance.Package.AppID = package.AppID;
-            instance.Package.InstallLocation = package.InstallLocation;
-            instance.Package.PackageFamilyName = package.PackageFamilyName;
-            instance.Package.Version = package.Version;
-            instance.ProcessID = 0;
-            instances.push_back(instance);
-        }
-
-        return instances;
-    }
-    */
-
-    DWORD LaunchRoblox(std::string AppID, std::string Username, const std::string& placeid)
-    {
-        std::string userSid = Native::GetUserSID();
-        std::string userExperience = Native::GetUserExperience();
-        std::string hexDateTime = Native::GetHexDatetime();
-
-        static std::string protocol = "roblox";
-
-        std::string lower = protocol + userSid + AppID + hexDateTime + userExperience;
-        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-
-        Native::WriteProtocolKeys(AppID, protocol, Utils::GetHash(lower));
-        //call SHChangeNotify
-        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
-
-        system(fmt::format("start roblox://placeId={}/", placeid).c_str());
-
-        for (int i = 0; i < 20; i++)
-        {
-            auto pids = Roblox::GetRobloxInstances();
-            for (auto pid : pids)
-            {
-                std::string command_line = Native::get_commandline_arguments(pid);
-                if (command_line.find(Username) != std::string::npos)
-                {
-                    return pid;
-                }
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        }
-    }
-
-    DWORD LaunchRoblox(std::string AppID, std::string Username, const std::string& placeid, const std::string& linkcode)
-    {
-        std::string userSid = Native::GetUserSID();
-        std::string userExperience = Native::GetUserExperience();
-        std::string hexDateTime = Native::GetHexDatetime();
-
-        static std::string protocol = "roblox";
-
-        std::string lower = protocol + userSid + AppID + hexDateTime + userExperience;
-        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-
-        Native::WriteProtocolKeys(AppID, protocol, Utils::GetHash(lower));
-        //call SHChangeNotify
-        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
-
-        std::string cmd = fmt::format("start roblox://placeId={}^&linkCode={}/", placeid, linkcode);
-        system(cmd.c_str());
-
-        for (int i = 0; i < 5; i++)
-        {
-            auto pids = Roblox::GetRobloxInstances();
-            for (auto pid : pids)
-            {
-                std::string command_line = Native::get_commandline_arguments(pid);
-                if (command_line.find(Username) != std::string::npos)
-                {
-                    return pid;
-                }
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        }
-    }
-
-    std::set<DWORD> GetRobloxInstances()
-    {
-        std::set<DWORD> pidSet;
-        PROCESSENTRY32 entry;
-        entry.dwSize = sizeof(PROCESSENTRY32);
-
-        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
-
-        if (Process32First(snapshot, &entry) == TRUE)
-        {
-            while (Process32Next(snapshot, &entry) == TRUE)
-            {
-                if (strcmp(entry.szExeFile, "Windows10Universal.exe") == 0)
-                {
-                    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, entry.th32ProcessID);
-                    BOOL debugged = FALSE;
-                    CheckRemoteDebuggerPresent(hProcess, &debugged);
-                    if (debugged)
-                    {
-                        TerminateProcess(hProcess, 9);
+                    instance.PackageID = winrt::to_string(package.Id().FullName().c_str());
+                    instance.PackageFamilyName = winrt::to_string(package.Id().FamilyName().c_str());
+                    instance.Version = std::to_string(package.Id().Version().Major) + "." +
+                        std::to_string(package.Id().Version().Minor) + "." +
+                        std::to_string(package.Id().Version().Revision) + "." +
+                        std::to_string(package.Id().Version().Build);
+                    if (package.InstalledLocation()) {
+                        instance.InstallLocation = winrt::to_string(package.InstalledLocation().Path().c_str());
                     }
-                    else
-                    {
-                        pidSet.insert(entry.th32ProcessID);
+                    else {
+                        instance.InstallLocation = "Not Available";
                     }
-                    CloseHandle(hProcess);
+
+                    // Getting AppListEntry information
+                    auto appListEntries = package.GetAppListEntriesAsync().get();
+                    for (const auto& appListEntry : appListEntries) {
+                        std::string fullName = winrt::to_string(package.Id().FullName().c_str());
+                        size_t underscorePosition = fullName.find('_');
+                        if (underscorePosition != std::string::npos) {
+                            instance.Name = fullName.substr(0, underscorePosition);
+                        }
+                        else {
+                            instance.Name = fullName;
+                        }
+
+                        instance.AppID = winrt::to_string(appListEntry.AppUserModelId().c_str());
+                    }
+
+                    // Extract the desired key using regex
+                    std::string fullName = winrt::to_string(package.Id().Name().c_str());
+                    std::regex r(R"(([^.]+)$)");  // Match any substring that doesn't contain a dot, at the end of the string
+                    std::smatch match;
+                    if (std::regex_search(fullName, match, r) && match.size() > 1) {
+                        std::string key = match.str(1);  // First capturing group
+                        instancesMap[key] = instance;
+                    }
                 }
             }
         }
+        catch (const winrt::hresult_error& ex) {
+            std::wcerr << L"WinRT error: " << ex.message().c_str() << std::endl;
+        }
 
-        CloseHandle(snapshot);
-
-        return pidSet;
+        return instancesMap;
     }
 
     ModifyXMLError ModifySettings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue)
@@ -1200,188 +1156,6 @@ namespace Utils
         return pattern;
     }
 
-
-
-    long GetShiftRight(long value, int count)
-    {
-        if ((value & 0x80000000) == 0)
-        {
-            return (value >> count);
-        }
-        else // Negative number
-        {
-            return (value >> count) ^ 0xFFFF0000;
-        }
-    }
-
-    //this is some Cnile shit, gotta fix it
-    int ToInt32(const unsigned char* bytes, int offset)
-    {
-        return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24));
-    }
-
-    const unsigned char* ToBytes(int64_t value)
-    {
-        static unsigned char bytes[8];
-        bytes[0] = value & 0xFF;
-        bytes[1] = (value >> 8) & 0xFF;
-        bytes[2] = (value >> 16) & 0xFF;
-        bytes[3] = (value >> 24) & 0xFF;
-        bytes[4] = (value >> 32) & 0xFF;
-        bytes[5] = (value >> 40) & 0xFF;
-        bytes[6] = (value >> 48) & 0xFF;
-        bytes[7] = (value >> 56) & 0xFF;
-        return bytes;
-    }
-
-    const unsigned char* TakeBytes(const unsigned char* input, int count)
-    {
-        static unsigned char result[8];
-        for (int i = 0; i < count && i < 8; ++i) {
-            result[i] = input[i];
-        }
-        return result;
-    }
-
-    class HashMap {
-    public:
-        long PDATA = 0, CACHE = 0, COUNTER = 0, INDEX = 0,
-            MD51 = 0, MD52 = 0, OUTHASH1 = 0, OUTHASH2 = 0,
-            R0 = 0, R3 = 0;
-        std::map<int, long> R1 = { {0, 0}, {1, 0} },
-            R2 = { {0, 0}, {1, 0} },
-            R4 = { {0, 0}, {1, 0} },
-            R5 = { {0, 0}, {1, 0} },
-            R6 = { {0, 0}, {1, 0} };
-
-        void reset() {
-            PDATA = 0;
-            CACHE = 0;
-            COUNTER = 0;
-            INDEX = 0;
-            MD51 = 0;
-            MD52 = 0;
-            OUTHASH1 = 0;
-            OUTHASH2 = 0;
-            R0 = 0;
-            R3 = 0;
-
-            R1 = { {0, 0}, {1, 0} };
-            R2 = { {0, 0}, {1, 0} };
-            R4 = { {0, 0}, {1, 0} };
-            R5 = { {0, 0}, {1, 0} };
-            R6 = { {0, 0}, {1, 0} };
-        }
-    };
-
-    std::string GetHash(const std::string& baseInfo)
-    {
-        std::vector<unsigned char> bytes(baseInfo.begin(), baseInfo.end());
-
-        for (int i = 0; i < bytes.size(); i += 2) {
-            bytes.insert(bytes.begin() + i + 1, 0x00);
-        }
-
-        bytes.push_back(0x00);
-        bytes.push_back(0x00);
-
-        Chocobo1::MD5 md5;
-        md5.addData(reinterpret_cast<char*>(&bytes[0]), bytes.size());
-        md5.finalize();
-        std::array<unsigned char, 16> bytesn = md5.toArray();
-        unsigned char md5Result[16];
-        std::copy(bytesn.begin(), bytesn.end(), md5Result);
-
-
-        int lengthBase = baseInfo.length() * 2 + 2;
-        int length = (((lengthBase & 4) <= 1) ? 1 : 0) + Utils::GetShiftRight(lengthBase, 2) - 1;
-        std::string base64Hash;
-
-        if (length > 1) {
-            HashMap map;
-            map.CACHE = 0;
-            map.OUTHASH1 = 0;
-            map.PDATA = 0;
-            map.MD51 = (ToInt32(md5Result, 0) | 1) + static_cast<int>(0x69FB0000L);
-            map.MD52 = (ToInt32(md5Result, 4) | 1) + static_cast<int>(0x13DB0000L);
-            map.INDEX = static_cast<int>(GetShiftRight(length - 2, 1));
-            map.COUNTER = map.INDEX + 1;
-
-            while (map.COUNTER > 0) {
-                map.R0 = ToInt32(ToBytes(ToInt32(bytes.data(), static_cast<int>(map.PDATA)) + map.OUTHASH1), 0);
-                map.R1[0] = ToInt32(ToBytes(ToInt32(bytes.data(), static_cast<int>(map.PDATA) + 4)), 0);
-                map.PDATA = map.PDATA + 8;
-                map.R2[0] = ToInt32(ToBytes((map.R0 * map.MD51) - (0x10FA9605L * GetShiftRight(map.R0, 16))), 0);
-                map.R2[1] = ToInt32(ToBytes((0x79F8A395L * map.R2[0]) + (0x689B6B9FL * GetShiftRight(map.R2[0], 16))), 0);
-                map.R3 = ToInt32(ToBytes((0xEA970001L * map.R2[1]) - (0x3C101569L * GetShiftRight(map.R2[1], 16))), 0);
-                map.R4[0] = ToInt32(ToBytes(map.R3 + map.R1[0]), 0);
-                map.R5[0] = ToInt32(ToBytes(map.CACHE + map.R3), 0);
-                map.R6[0] = ToInt32(ToBytes((map.R4[0] * map.MD52) - (0x3CE8EC25L * GetShiftRight(map.R4[0], 16))), 0);
-                map.R6[1] = ToInt32(ToBytes((0x59C3AF2DL * map.R6[0]) - (0x2232E0F1L * GetShiftRight(map.R6[0], 16))), 0);
-                map.OUTHASH1 = ToInt32(ToBytes((0x1EC90001L * map.R6[1]) + (0x35BD1EC9L * GetShiftRight(map.R6[1], 16))), 0);
-                map.OUTHASH2 = ToInt32(ToBytes(map.R5[0] + map.OUTHASH1), 0);
-                map.CACHE = map.OUTHASH2;
-                map.COUNTER = map.COUNTER - 1;
-            }
-
-            std::vector<unsigned char> outHash(16, 0x00);
-            auto fullbuffer = ToBytes(map.OUTHASH1);
-            auto buffer = TakeBytes(fullbuffer, 4);
-            std::copy(buffer, buffer + 4, outHash.begin());
-            fullbuffer = ToBytes(map.OUTHASH2);
-            buffer = TakeBytes(fullbuffer, 4);
-            std::copy(buffer, buffer + 4, outHash.begin() + 4);
-
-            map.reset();
-
-            map.CACHE = 0;
-            map.OUTHASH1 = 0;
-            map.PDATA = 0;
-            map.MD51 = ToInt32(md5Result, 0) | 1;
-            map.MD52 = ToInt32(md5Result, 4) | 1;
-            map.INDEX = static_cast<int>(GetShiftRight(length - 2, 1));
-            map.COUNTER = map.INDEX + 1;
-            while (map.COUNTER > 0)
-            {
-                map.R0 = ToInt32(bytes.data(), map.PDATA) + map.OUTHASH1;
-                map.PDATA = map.PDATA + 8;
-                map.R1[0] = ToInt32(ToBytes(map.R0 * map.MD51), 0);
-                map.R1[1] = ToInt32(ToBytes((0xB1110000L * map.R1[0]) - (0x30674EEFL * GetShiftRight(map.R1[0], 16))), 0);
-                map.R2[0] = ToInt32(ToBytes((0x5B9F0000L * map.R1[1]) - (0x78F7A461L * GetShiftRight(map.R1[1], 16))), 0);
-                map.R2[1] = ToInt32(ToBytes((0x12CEB96DL * GetShiftRight(map.R2[0], 16)) - (0x46930000L * map.R2[0])), 0);
-                map.R3 = ToInt32(ToBytes((0x1D830000L * map.R2[1]) + (0x257E1D83L * GetShiftRight(map.R2[1], 16))), 0);
-                map.R4[0] = ToInt32(ToBytes(map.MD52 * (map.R3 + ToInt32(bytes.data(), map.PDATA - 4))), 0);
-                map.R4[1] = ToInt32(ToBytes((0x16F50000L * map.R4[0]) - (0x5D8BE90BL * GetShiftRight(map.R4[0], 16))), 0);
-                map.R5[0] = ToInt32(ToBytes((0x96FF0000L * map.R4[1]) - (0x2C7C6901L * GetShiftRight(map.R4[1], 16))), 0);
-                map.R5[1] = ToInt32(ToBytes((0x2B890000L * map.R5[0]) + (0x7C932B89L * GetShiftRight(map.R5[0], 16))), 0);
-                map.OUTHASH1 = ToInt32(ToBytes((0x9F690000L * map.R5[1]) - (0x405B6097L * GetShiftRight(map.R5[1], 16))), 0);
-                map.OUTHASH2 = ToInt32(ToBytes(map.OUTHASH1 + map.CACHE + map.R3), 0);
-                map.CACHE = map.OUTHASH2;
-                map.COUNTER = map.COUNTER - 1;
-            }
-
-            buffer = ToBytes(map.OUTHASH1);
-            std::copy(buffer, buffer + 4, outHash.begin() + 8);
-            buffer = ToBytes(map.OUTHASH2);
-            std::copy(buffer, buffer + 4, outHash.begin() + 12);
-
-            std::vector<unsigned char> outHashBase(8, 0x00);
-            int hashValue1 = ToInt32(outHash.data(), 8) ^ ToInt32(outHash.data(), 0);
-            int hashValue2 = ToInt32(outHash.data(), 12) ^ ToInt32(outHash.data(), 4);
-
-            buffer = ToBytes(hashValue1);
-            std::copy(buffer, buffer + 4, outHashBase.begin());
-            buffer = ToBytes(hashValue2);
-            std::copy(buffer, buffer + 4, outHashBase.begin() + 4);
-            base64Hash = StringUtils::Base64Encode(outHashBase.data(), outHashBase.size());
-
-            return base64Hash;
-        }
-        else {
-            throw std::runtime_error("Missing base info");
-        }
-    }
-
     bool SaveToFile(const std::string& file_path, const std::vector<char8_t>& buffer)
     {
         std::ofstream ofs(file_path, std::ios::out | std::ios::binary);
@@ -1432,11 +1206,16 @@ namespace Utils
     }
 
     void DownloadAndSave(const std::string& url, const std::string& localFileName) {
+        /*
         std::vector<char8_t> buffer;
         Request req(url);
         req.initalize();
         req.download_file<char8_t>(buffer);
         Utils::SaveToFile(localFileName, buffer);
+        */
+        std::ofstream out(localFileName, std::ios::binary);
+        cpr::Response r = cpr::Download(out, cpr::Url{ url });
+        out.close();
     }
 
     void DecompressZip(const std::string& zipFile, const std::string& destination) {
@@ -1503,24 +1282,36 @@ namespace Utils
         return printer.CStr();
     }
 
+    struct FileContent {
+        std::string data;  // This will hold the actual content
+        int64_t read_len = 0;  // This will keep track of the amount of data read
+    };
 
-    void WriteAppxManifest(const std::string& url, const std::string& localPath, const std::string name) {
-        std::vector<char8_t> buffer;
-        Request req(url);
-        req.initalize();
-        req.download_file<char8_t>(buffer);
+    bool write_data(const std::string& data, intptr_t userdata) {
+        FileContent* content = reinterpret_cast<FileContent*>(userdata);
+        content->data += data;
+        content->read_len += data.size();
+        return true;
+    }
 
-        std::string strbuf(buffer.begin(), buffer.end());
 
-        if (!name.empty())
-        {
-            strbuf = Utils::ModifyAppxManifest(strbuf, name);
+    void WriteAppxManifest(const std::string& url, const std::string& localPath, const std::string& name) {
+        cpr::Session session;
+        session.SetUrl(cpr::Url{url});
+
+        FileContent file_content;
+
+        cpr::Response result = session.Download(cpr::WriteCallback{write_data, reinterpret_cast<intptr_t>(&file_content)});
+
+        std::string downloaded_str = file_content.data;
+
+        if (!name.empty()) {
+            downloaded_str = Utils::ModifyAppxManifest(downloaded_str, name);
         }
 
-
-        std::ofstream ofs(localPath, std::ofstream::out | std::ofstream::trunc);
-        ofs.write(strbuf.c_str(), strbuf.size());
-        ofs.flush();
+        std::ofstream outfile(localPath, std::ofstream::out | std::ofstream::trunc);
+        outfile.write(downloaded_str.c_str(), downloaded_str.size());
+        outfile.flush();
     }
 
     void UpdatePackage(const std::string& baseFolder, const std::string& instanceName) {

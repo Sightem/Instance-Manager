@@ -39,6 +39,26 @@ void Group::Start()
 			while (m_IsActive.load(std::memory_order_relaxed) && std::chrono::duration_cast<Minutes>(Clock::now() - start).count() < m_RestartTime.load(std::memory_order_relaxed))
 			{
 				std::this_thread::sleep_for(Seconds(1));
+
+				for (auto& manager : this->m_Managers)
+				{
+					if (!manager.second->IsRunning())
+					{
+						std::this_thread::sleep_for(Seconds(7));
+
+						manager.second->start();
+
+						std::this_thread::sleep_for(Seconds(2));
+
+						if (!this->m_DllPath.empty())
+						{
+							manager.second->Inject(this->m_DllPath);
+						}
+
+						std::this_thread::sleep_for(Seconds(this->m_LaunchDelay.load(std::memory_order_relaxed)));
+					}
+				}
+
 			}
 
 			for (auto& manager : this->m_Managers)

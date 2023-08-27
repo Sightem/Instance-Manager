@@ -1,4 +1,5 @@
 #pragma once
+#define NOMINMAX
 #include <Windows.h>
 #include <TlHelp32.h>
 #include <Psapi.h>

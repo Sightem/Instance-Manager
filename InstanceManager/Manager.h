@@ -1,7 +1,10 @@
 #pragma once
 #include <string>
+#define NOMINMAX
 #include <Windows.h>
-#include "Functions.h"
+#include <chrono>
+
+#include "Roblox.h"
 
 class Manager
 {
@@ -24,6 +27,8 @@ public:
 	DWORD GetPID() const { return this->m_Pid; }
 
 	std::string GetUsername() const { return this->m_Username; }
+
+	bool IsRunning() const;
 
 private:
 	std::string m_PlaceID;

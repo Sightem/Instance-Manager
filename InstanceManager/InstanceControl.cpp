@@ -1,6 +1,11 @@
 #include "InstanceControl.h"
 #include <fmt/format.h>
 
+#include "FS.h"
+#include "utils.h"
+
+#include <fstream>
+
 InstanceControl& GetPrivateInstance()
 {
 	static InstanceControl instance;
