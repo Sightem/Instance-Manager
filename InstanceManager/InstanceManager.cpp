@@ -755,6 +755,8 @@ private:
 
 int main()
 {
+	winrt::init_apartment();
+
     InstanceManager app;
     app.Run();
     return 0;

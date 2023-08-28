@@ -81,6 +81,7 @@ namespace Roblox
         }
         catch (const winrt::hresult_error& ex) {
             std::wcerr << L"WinRT error: " << ex.message().c_str() << std::endl;
+            std::wcerr << L"Error code: " << ex.code() << std::endl;
         }
 
         if (instancesMap.find("ROBLOX") != instancesMap.end()) {
