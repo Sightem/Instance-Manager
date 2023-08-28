@@ -33,7 +33,14 @@ bool Manager::start()
 	std::scoped_lock lock(this->mutex);
 	DWORD procID;
 	
-	procID = LaunchRoblox(this->m_Instance.AppID, this->m_PlaceID, this->m_LinkCode);
+	if (this->m_LinkCode == "")
+	{
+		procID = LaunchRoblox(this->m_Instance.AppID, this->m_PlaceID);
+	}
+	else
+	{
+		procID = LaunchRoblox(this->m_Instance.AppID, this->m_PlaceID, this->m_LinkCode);
+	}
 
 	if (procID != -1)
 	{
