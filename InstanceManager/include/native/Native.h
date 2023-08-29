@@ -2,9 +2,9 @@
 #include <string>
 #include <set>
 #define NOMINMAX
-#include <Windows.h>
-#include <Shlobj.h>
-#include <Shlobj_core.h>
+#include <windows.h>
+#include <shlobj.h>
+#include <shlobj_core.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Management.Deployment.h>

@@ -1,10 +1,10 @@
 #pragma once
 #include <string>
 #define NOMINMAX
-#include <Windows.h>
+#include <windows.h>
 #include <chrono>
 
-#include "Roblox.h"
+#include "roblox/Roblox.h"
 
 class Manager
 {

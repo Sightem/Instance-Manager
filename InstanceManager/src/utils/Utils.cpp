@@ -1,14 +1,14 @@
-#include "Utils.h"
+#include "utils/Utils.h"
 #include <fstream>
 #include <thread>
 #include <filesystem>
 #define NOMINMAX
-#include <Windows.h>
+#include <windows.h>
 
 #include "tinyxml2.h"
 #include "cpr/cpr.h"
-#include "FS.h"
-#include "Logger.h"
+#include "utils/filesystem/FS.h"
+#include "logging/CoreLogger.hpp"
 
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -217,15 +217,15 @@ namespace Utils
 
         win10t.join();
 
-        CoreLogger::GetInstance().Log(LogLevel::INFO, "Updated Windows10Universal");
+        CoreLogger::Log(LogLevel::INFO, "Updated Windows10Universal");
 
         crasht.join();
 
-        CoreLogger::GetInstance().Log(LogLevel::INFO, "Updated CrashHandler");
+        CoreLogger::Log(LogLevel::INFO, "Updated CrashHandler");
 
         appxt.join();
 
-        CoreLogger::GetInstance().Log(LogLevel::INFO, "Updated AppxManifest");
+        CoreLogger::Log(LogLevel::INFO, "Updated AppxManifest");
     }
 
     bool SaveScreenshotAsPng(const char* filename)

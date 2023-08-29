@@ -1,13 +1,12 @@
-#include "FS.h"
+#include "utils/filesystem/FS.h"
 
 #define NOMINMAX
-#include <Windows.h>
+#include <windows.h>
 #include <fstream>
 
 #include "libzippp/libzippp.h"
 
-
-#include "Logger.h"
+#include "logging/CoreLogger.hpp"
 
 namespace FS
 {
@@ -17,7 +16,7 @@ namespace FS
         auto abs_dst = std::filesystem::absolute(dst);
 
         if (!std::filesystem::exists(abs_src) || !std::filesystem::is_directory(abs_src)) {
-            CoreLogger::GetInstance().Log(LogLevel::WARNING, "Source directory {} does not exist or is not a directory.", abs_src.string());
+            CoreLogger::Log(LogLevel::WARNING, "Source directory {} does not exist or is not a directory.", abs_src.string());
             return false;
         }
 
@@ -37,12 +36,12 @@ namespace FS
                     std::filesystem::copy_file(src_path, dst_path, std::filesystem::copy_options::overwrite_existing);
                 }
                 catch (const std::filesystem::filesystem_error& e) {
-                    CoreLogger::GetInstance().Log(LogLevel::ERR, "Error copying file {} to {}: {}", src_path.string(), dst_path.string(), e.what());
+                    CoreLogger::Log(LogLevel::ERR, "Error copying file {} to {}: {}", src_path.string(), dst_path.string(), e.what());
                     return false;
                 }
             }
             else {
-                CoreLogger::GetInstance().Log(LogLevel::WARNING, "Skipping non-regular file {}", src_path.string());
+                CoreLogger::Log(LogLevel::WARNING, "Skipping non-regular file {}", src_path.string());
             }
         }
 
@@ -68,20 +67,20 @@ namespace FS
                 }
                 else
                 {
-                    CoreLogger::GetInstance().Log(LogLevel::ERR, "Unsupported file type.");
+                    CoreLogger::Log(LogLevel::ERR, "Unsupported file type.");
                     return false;
                 }
             }
             catch (const std::filesystem::filesystem_error& e)
             {
-                CoreLogger::GetInstance().Log(LogLevel::ERR, "Error: {}", e.what());
+                CoreLogger::Log(LogLevel::ERR, "Error: {}", e.what());
                 return false;
             }
         }
         else
         {
             // Path does not exist
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Error: Path does not exist.");
+            CoreLogger::Log(LogLevel::ERR, "Error: Path does not exist.");
             return false;
         }
     }
@@ -91,7 +90,7 @@ namespace FS
 
         ZipArchive zip(zipPath);
         if (!zip.open(ZipArchive::ReadOnly)) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to open zip archive: {}", zipPath);
+            CoreLogger::Log(LogLevel::ERR, "Failed to open zip archive: {}", zipPath);
             return false;
         }
 
@@ -113,7 +112,7 @@ namespace FS
                         outputFile.close();
                     }
                     else {
-                        CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to write file: {}", outputPath);
+                        CoreLogger::Log(LogLevel::ERR, "Failed to write file: {}", outputPath);
                     }
                 }
             }
@@ -129,14 +128,14 @@ namespace FS
 
         ZipArchive zip(zipPath);
         if (!zip.open(ZipArchive::ReadOnly)) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to open zip archive: {}", zipPath);
+            CoreLogger::Log(LogLevel::ERR, "Failed to open zip archive: {}", zipPath);
             return false;
         }
 
         auto nbEntries = zip.getNbEntries();
 
         if (nbEntries != 1) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Zip archive must contain only one file: {}", zipPath);
+            CoreLogger::Log(LogLevel::ERR, "Zip archive must contain only one file: {}", zipPath);
             zip.close();
             return false;
         }
@@ -150,13 +149,13 @@ namespace FS
                 outputFile.close();
             }
             else {
-                CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to write file: {}", destination);
+                CoreLogger::Log(LogLevel::ERR, "Failed to write file: {}", destination);
                 zip.close();
                 return false;
             }
         }
         else {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Invalid zip entry: {}", zipPath);
+            CoreLogger::Log(LogLevel::ERR, "Invalid zip entry: {}", zipPath);
             zip.close();
             return false;
         }
@@ -176,7 +175,7 @@ namespace FS
             }
         }
         catch (const std::filesystem::filesystem_error& e) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Error: {}", e.what());
+            CoreLogger::Log(LogLevel::ERR, "Error: {}", e.what());
         }
 
         return result;

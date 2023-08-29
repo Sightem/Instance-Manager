@@ -1,10 +1,9 @@
 #pragma once
 #include "imgui.h"
 #include "Base.hpp"
-#include "AppLog.hpp"
 
-#include "InstanceControl.h"
-#include "FS.h"
+#include "instance-control/InstanceControl.h"
+#include "utils/filesystem/FS.h"
 
 namespace fs = std::filesystem;
 

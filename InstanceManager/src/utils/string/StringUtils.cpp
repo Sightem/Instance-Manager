@@ -1,7 +1,7 @@
-#include "StringUtils.h"
+#include "utils/string/StringUtils.h"
 
 #define NOMINMAX
-#include <Windows.h>
+#include <windows.h>
 
 #include <vector>
 

@@ -1,8 +1,8 @@
-#include "InstanceControl.h"
+#include "instance-control/InstanceControl.h"
 #include <fmt/format.h>
 
-#include "FS.h"
-#include "utils.h"
+#include "utils/filesystem/FS.h"
+#include "utils/utils.h"
 
 #include <fstream>
 

@@ -7,8 +7,8 @@
 #include <windows.h>
 #include <commdlg.h>
 #include "imgui.h"
-#include "Config.hpp"
-#include "InstanceControl.h" 
+#include "config/Config.hpp"
+#include "instance-control/InstanceControl.h"
 
 #include "UI.h"
 

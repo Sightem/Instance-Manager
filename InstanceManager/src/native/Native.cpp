@@ -1,14 +1,14 @@
-#include "Native.h"
-#include "ntdll.h"
+#include "native/Native.h"
+#include "native/ntdll.h"
 
-#include <TlHelp32.h>
+#include <tlhelp32.h>
 #include <lmcons.h>
 
-#include "Utils.h"
+#include "utils/utils.h"
 
 #include <iostream>
 
-#include "Logger.h"
+#include "logging/CoreLogger.hpp"
 
 
 namespace Native
@@ -25,7 +25,7 @@ namespace Native
 
         if constexpr (CaptureOutput) {
             if (!CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0)) {
-                CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to create pipe");
+                CoreLogger::Log(LogLevel::ERR, "Failed to create pipe");
                 if constexpr (CaptureOutput) return "";
                 else return;
             }
@@ -46,7 +46,7 @@ namespace Native
         std::string cmd_line = "powershell.exe -Command \"" + command + "\"";
 
         if (!CreateProcess(NULL, &cmd_line[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &startup_info, &process_info)) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to create process");
+            CoreLogger::Log(LogLevel::ERR, "Failed to create process");
             if constexpr (CaptureOutput) return "";
             else return;
         }
@@ -95,13 +95,13 @@ namespace Native
         winrt::com_ptr<IApplicationActivationManager> pAAM;
         HRESULT hr = CoCreateInstance(CLSID_ApplicationActivationManager, NULL, CLSCTX_LOCAL_SERVER, IID_PPV_ARGS(&pAAM));
         if (FAILED(hr)) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to create IApplicationActivationManager instance. Error code: {}", hr);
+            CoreLogger::Log(LogLevel::ERR, "Failed to create IApplicationActivationManager instance. Error code: {}", hr);
             return 0;
         }
 
         auto shellItemArray = CreateShellItemArrayFromProtocol(protocolURI);
         if (!shellItemArray) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to create IShellItemArray from protocol URI.");
+            CoreLogger::Log(LogLevel::ERR, "Failed to create IShellItemArray from protocol URI.");
             return 0;
         }
 
@@ -109,7 +109,7 @@ namespace Native
         hr = pAAM->ActivateForProtocol(appID.c_str(), shellItemArray.get(), &dwPID);
 
         if (FAILED(hr)) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to activate UWP app. Error code: {}", hr);
+            CoreLogger::Log(LogLevel::ERR, "Failed to activate UWP app. Error code: {}", hr);
             return 0;
         }
 
@@ -123,15 +123,27 @@ namespace Native
 
             auto deploymentOperation = packageManager.RegisterPackageAsync(packageUri, nullptr, winrt::Windows::Management::Deployment::DeploymentOptions::DevelopmentMode);
 
-            deploymentOperation.get();
+            // Monitor the progress of the deployment
+            deploymentOperation.Progress([](const auto& operation, const winrt::Windows::Management::Deployment::DeploymentProgress& progress) {
+                std::wcout << L"Installing... Step: " << static_cast<int>(progress.state) << L" - " << progress.percentage << L"%" << std::endl;
+            });
+
+            deploymentOperation.get(); // This blocks until the operation completes
+
+            if (deploymentOperation.Status() != winrt::Windows::Foundation::AsyncStatus::Completed) {
+                const auto& result = deploymentOperation.GetResults();
+                std::wcerr << L"Installation failed. Error: " << result.ErrorText().c_str() << L" Extended Error: " << std::hex << result.ExtendedErrorCode() << std::endl;
+                return false;
+            }
 
             return true;
         }
         catch (const winrt::hresult_error& ex) {
-            std::wcerr << L"Installation failed: " << ex.message().c_str() << std::endl;
+            std::wcerr << L"Installation encountered an exception: " << ex.message().c_str() << std::endl;
             return false;
         }
     }
+
 
     bool RemoveUWPApp(const winrt::hstring& packageFullName) {
         try {
@@ -264,7 +276,7 @@ namespace Native
         DWORD numberOfCores = sysInfo.dwNumberOfProcessors;
 
         if (requestedCores <= 0 || requestedCores > numberOfCores) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Invalid number of cores requested.");
+            CoreLogger::Log(LogLevel::ERR, "Invalid number of cores requested.");
             return false;
         }
 
@@ -275,12 +287,12 @@ namespace Native
 
         HANDLE hProcess = OpenProcess(PROCESS_SET_INFORMATION, FALSE, processID);
         if (hProcess == NULL) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to open process. Error code: {}", GetLastError());
+            CoreLogger::Log(LogLevel::ERR, "Failed to open process. Error code: {}", GetLastError());
             return false;
         }
 
         if (SetProcessAffinityMask(hProcess, mask) == 0) {
-            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to set process affinity. Error code: {}", GetLastError());
+            CoreLogger::Log(LogLevel::ERR, "Failed to set process affinity. Error code: {}", GetLastError());
             CloseHandle(hProcess);
             return false;
         }

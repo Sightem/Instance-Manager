@@ -1,5 +1,4 @@
-#include "Config.hpp"
-
+#include "config/Config.hpp"
 
 nlohmann::json& Config::Get()
 {

@@ -3,10 +3,10 @@
 #include <unordered_map>
 #include <memory>
 #include <vector>
-#include "Manager.h"
-#include "Group.h"
-#include "Roblox.h"
-#include "Native.h"
+#include "manager/Manager.h"
+#include "group/Group.h"
+#include "roblox/Roblox.h"
+#include "native/Native.h"
 
 class InstanceControl
 {

@@ -1,19 +1,17 @@
-#include "Roblox.h"
+#include "roblox/Roblox.h"
 
 #include <regex>
 #include <iostream>
 
-#include "Native.h"
-#include "FS.h"
-#include "Utils.h"
+#include "native/Native.h"
+#include "utils/filesystem/FS.h"
+#include "utils/Utils.h"
 
 #include "tinyxml2.h"
 #include "cpr/cpr.h"
 #include "nlohmann/json.hpp"
-
+#include "instance-control/InstanceControl.h"
 #define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
-
-#include "InstanceControl.h"
 
 namespace Roblox
 {

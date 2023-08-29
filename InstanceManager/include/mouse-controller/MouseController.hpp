@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <vector>
 #include <stdexcept>
+#include <cstring>
 
 class MouseController {
 public:
@@ -50,7 +51,7 @@ private:
     MouseController() {
         m_ntUserSendInputBytes.resize(30); // Reserve space for 30 bytes
 
-        LPVOID NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("win32u"), "NtUserSendInput");
+        FARPROC NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("win32u"), "NtUserSendInput");
         if (!NtUserSendInput_Addr) {
             NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("user32"), "NtUserSendInput");
             if (!NtUserSendInput_Addr) {
@@ -61,10 +62,10 @@ private:
             }
         }
 
-        memcpy(m_ntUserSendInputBytes.data(), NtUserSendInput_Addr, 30);
+        memcpy(m_ntUserSendInputBytes.data(), reinterpret_cast<PVOID>(NtUserSendInput_Addr), 30);
     }
 
-    float m_GetDPIScalingFactor() {
+    static float m_GetDPIScalingFactor() {
         HDC screen = GetDC(NULL);
         float dpiScaling = static_cast<float>(GetDeviceCaps(screen, LOGPIXELSX)) / 96.0f;
         ReleaseDC(NULL, screen);

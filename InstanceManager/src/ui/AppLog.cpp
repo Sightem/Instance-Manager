@@ -1,8 +1,8 @@
-#include "AppLog.hpp"
+#include "ui/AppLog.hpp"
 
 #include "imgui.h"
 
-#include "Logger.h"
+#include "logging/CoreLogger.hpp"
 
 void AppLog::Clear()
 {

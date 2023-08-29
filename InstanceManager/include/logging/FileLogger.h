@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Logger.h"
+#include "logging/CoreLogger.hpp"
 
 class FileLogger {
 public:
@@ -30,7 +30,7 @@ public:
         else {
             CoreLogger::GetInstance().RegisterListener([this](const LogMessage& logMsg) {
                 this->LogToFile(logMsg);
-            });
+                });
         }
     }
 

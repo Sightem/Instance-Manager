@@ -1,8 +1,8 @@
 #pragma once
 #define NOMINMAX
-#include <Windows.h>
-#include <TlHelp32.h>
-#include <Psapi.h>
+#include <windows.h>
+#include <tlhelp32.h>
+#include <psapi.h>
 
 
 #define GDI_HANDLE_BUFFER_SIZE32    34

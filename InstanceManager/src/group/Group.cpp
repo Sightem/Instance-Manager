@@ -1,4 +1,4 @@
-#include "Group.h"
+#include "group/Group.h"
 #include <chrono>
 
 using Clock = std::chrono::steady_clock;

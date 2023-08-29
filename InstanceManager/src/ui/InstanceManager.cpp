@@ -1,25 +1,26 @@
-#include "InstanceManager.h"
+#include "ui/InstanceManager.h"
 
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "AppLog.hpp"
-#include "ThreadPool.hpp"
-#include "Config.hpp"
-#include "MouseController.hpp"
-#include "FileManagement.h"
-#include "InstanceControl.h"
-#include "AutoRelaunch.h"
+#include "ui/AppLog.hpp"
+#include "utils/threadpool/ThreadPool.hpp"
+#include "config/Config.hpp"
+#include "mouse-controller/MouseController.hpp"
+#include "ui/FileManagement.h"
+#include "instance-control/InstanceControl.h"
+#include "ui/AutoRelaunch.h"
 
-#include "UI.h"
-#include "FS.h"
-#include "Native.h"
-#include "Utils.h"
-#include "StringUtils.h"
-#include "Logger.h"
-#include "FileLogger.h"
+#include "ui/UI.h"
+#include "utils/filesystem/FS.h"
+#include "native/Native.h"
+#include "utils/Utils.h"
+#include "utils/string/StringUtils.h"
+#include "logging/CoreLogger.hpp"
+#include "logging/FileLogger.h"
+#include "roblox/Roblox.h"
 
 std::vector<std::string> g_InstanceNames = g_InstanceControl.GetInstanceNames();
 std::vector<bool> g_Selection;
@@ -320,11 +321,11 @@ void InstanceManager::RenderProcessControl()
 
 					if (!Native::SetProcessAffinity(mgr->GetPID(), cpucores))
 					{
-						CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to set affinity for instance {}", g_InstanceNames[idx]);
+						CoreLogger::Log(LogLevel::ERR, "Failed to set affinity for instance {}", g_InstanceNames[idx]);
 					}
 					else
 					{
-						CoreLogger::GetInstance().Log(LogLevel::INFO, "Set affinity for instance {}", g_InstanceNames[idx]);
+						CoreLogger::Log(LogLevel::INFO, "Set affinity for instance {}", g_InstanceNames[idx]);
 					}
 				}
 			);
@@ -350,7 +351,7 @@ std::pair<int, int> InstanceManager::MatchTemplate(const std::string& template_p
 	if (maxVal > threshold) {
 		int xMid = maxLoc.x + (templateIMG.cols / 2);
 		int yMid = maxLoc.y + (templateIMG.rows / 2);
-		CoreLogger::GetInstance().Log(LogLevel::INFO, "Button found from template {} at location: ({}, {})", template_path.c_str(), xMid, yMid);
+		CoreLogger::Log(LogLevel::INFO, "Button found from template {} at location: ({}, {})", template_path.c_str(), xMid, yMid);
 		return { xMid, yMid };
 	}
 	else {
@@ -377,10 +378,10 @@ void InstanceManager::HandleCodeValidation(DWORD pid, const std::string& usernam
 	std::string codeValue = Roblox::FindCodeValue(pHandle, username);
 
 	if (codeValue == "") {
-		CoreLogger::GetInstance().Log(LogLevel::INFO, "Code value not found");
+		CoreLogger::Log(LogLevel::INFO, "Code value not found");
 	}
 	else {
-		CoreLogger::GetInstance().Log(LogLevel::INFO, "Code value found: {}", codeValue);
+		CoreLogger::Log(LogLevel::INFO, "Code value found: {}", codeValue);
 		Roblox::EnterCode(codeValue, cookie);
 		Roblox::ValidateCode(codeValue, cookie);
 	}
@@ -400,7 +401,7 @@ void InstanceManager::RenderAutoLogin(int n)
 		if (ImGui::Button("Login", ImVec2(320.0f, 0.0f)))
 		{
 			std::thread([this, n]() {
-				CoreLogger::GetInstance().Log(LogLevel::INFO, "Beginning auto login for {}", g_InstanceNames[n]);
+				CoreLogger::Log(LogLevel::INFO, "Beginning auto login for {}", g_InstanceNames[n]);
 
 				auto start = std::chrono::high_resolution_clock::now();
 
@@ -436,7 +437,7 @@ void InstanceManager::RenderAutoLogin(int n)
 
 				auto end = std::chrono::high_resolution_clock::now();
 				auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-				CoreLogger::GetInstance().Log(LogLevel::INFO, "Auto login took {} milliseconds", dur.count());
+				CoreLogger::Log(LogLevel::INFO, "Auto login took {} milliseconds", dur.count());
 				}).detach();
 		}
 
@@ -457,10 +458,10 @@ void InstanceManager::RenderLaunch(std::string placeid, std::string linkcode, do
 	{
 		ForEachSelectedInstance([this, placeid, linkcode, launchdelay](int idx) {
 			auto callback = [idx]() {
-				CoreLogger::GetInstance().Log(LogLevel::INFO, "Launched {}", g_InstanceNames[idx]);
+				CoreLogger::Log(LogLevel::INFO, "Launched {}", g_InstanceNames[idx]);
 			};
 
-			CoreLogger::GetInstance().Log(LogLevel::INFO, "Launching {}...", g_InstanceNames[idx]);
+			CoreLogger::Log(LogLevel::INFO, "Launching {}...", g_InstanceNames[idx]);
 
 			this->m_QueuedThreadManager.SubmitTask("delay" + std::to_string(idx), [launchdelay]() {
 				std::this_thread::sleep_for(std::chrono::milliseconds((int)(launchdelay * 1000)));
@@ -516,7 +517,7 @@ void InstanceManager::RenderTerminate()
 	if (ui::RedButton("Terminate"))
 	{
 		ForEachSelectedInstance([](int idx) {
-			CoreLogger::GetInstance().Log(LogLevel::INFO, "Terminating {}", g_InstanceNames[idx]);
+			CoreLogger::Log(LogLevel::INFO, "Terminating {}", g_InstanceNames[idx]);
 			g_InstanceControl.TerminateInstance(g_InstanceNames[idx]);
 			});
 	}
@@ -524,7 +525,7 @@ void InstanceManager::RenderTerminate()
 
 void InstanceManager::DeleteInstances(const std::set<int>& indices)
 {
-	CoreLogger::GetInstance().Log(LogLevel::INFO, "Deleting instances...");
+	CoreLogger::Log(LogLevel::INFO, "Deleting instances...");
 
 	// It's safer to erase items from a vector in reverse order
 	auto sortedIndices = indices;
@@ -539,11 +540,11 @@ void InstanceManager::DeleteInstances(const std::set<int>& indices)
 			}
 			catch (const std::exception& e)
 			{
-				CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to delete instance {}: {}", g_InstanceControl.GetInstance(g_InstanceNames[idx]).Name, e.what());
+				CoreLogger::Log(LogLevel::ERR, "Failed to delete instance {}: {}", g_InstanceControl.GetInstance(g_InstanceNames[idx]).Name, e.what());
 			}
 
 			}, [&]() {
-				CoreLogger::GetInstance().Log(LogLevel::INFO, "Instance Deleted");
+				CoreLogger::Log(LogLevel::INFO, "Instance Deleted");
 			});
 	}
 }
@@ -573,10 +574,10 @@ void InstanceManager::RenderRemoveInstances()
 					}
 					catch (const std::exception& e)
 					{
-						CoreLogger::GetInstance().Log(LogLevel::WARNING, "Failed to delete instance {}: {}", g_InstanceNames[idx], e.what());
+						CoreLogger::Log(LogLevel::WARNING, "Failed to delete instance {}: {}", g_InstanceNames[idx], e.what());
 					}
 					}, [&]() {
-						CoreLogger::GetInstance().Log(LogLevel::INFO, "Instance Deleted");
+						CoreLogger::Log(LogLevel::INFO, "Instance Deleted");
 					});
 				});
 		}
@@ -639,10 +640,10 @@ void InstanceManager::RenderCreateInstance()
 
 	if (ui::ConditionalButton("Create instance", !(instanceNameBuf.empty() || StringUtils::ContainsOnly(instanceNameBuf, '\0')), ui::ButtonStyle::Green))
 	{
-		CoreLogger::GetInstance().Log(LogLevel::INFO, "Creating instance...");
+		CoreLogger::Log(LogLevel::INFO, "Creating instance...");
 
 		auto completionCallback = [=]() {
-			CoreLogger::GetInstance().Log(LogLevel::INFO, "Instance created");
+			CoreLogger::Log(LogLevel::INFO, "Instance created");
 			std::vector<std::string> new_instances = Roblox::GetNewInstances(g_InstanceNames);
 
 			for (const auto& str : new_instances) {
@@ -670,10 +671,10 @@ void InstanceManager::RenderCreateInstance()
 
 void InstanceManager::RenderUpdateTemplate() {
 	auto callback = []() {
-		CoreLogger::GetInstance().Log(LogLevel::INFO, "Template updated");
+		CoreLogger::Log(LogLevel::INFO, "Template updated");
 	};
 	if (ImGui::Button("Update Template")) {
-		CoreLogger::GetInstance().Log(LogLevel::INFO, "Updating template...");
+		CoreLogger::Log(LogLevel::INFO, "Updating template...");
 
 		if (!std::filesystem::exists("Template")) {
 			std::filesystem::create_directories("Template\\Assets");
@@ -696,11 +697,11 @@ void InstanceManager::RenderUpdateInstance() {
 				std::string abs_path = std::filesystem::absolute(g_InstanceControl.GetInstance(g_InstanceNames[idx]).InstallLocation + "\\AppxManifest.xml").string();
 				std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
 				Native::RunPowershellCommand<false>(cmd);
-				CoreLogger::GetInstance().Log(LogLevel::INFO, "Update Done");
+				CoreLogger::Log(LogLevel::INFO, "Update Done");
 
 			};
 			this->m_QueuedThreadManager.SubmitTask(fmt::format("updateinstances{}", idx), [idx]() {
-				CoreLogger::GetInstance().Log(LogLevel::INFO, "Updating {}...", g_InstanceNames[idx]);
+				CoreLogger::Log(LogLevel::INFO, "Updating {}...", g_InstanceNames[idx]);
 				Utils::UpdatePackage(g_InstanceControl.GetInstance(g_InstanceNames[idx]).InstallLocation, g_InstanceNames[idx]);
 				}, callback);
 			});

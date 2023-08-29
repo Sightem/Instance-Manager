@@ -8,7 +8,7 @@
 #include <functional>
 #include <iostream>
 #include <cstdlib>
-#include <stdio.h>
+#include <cstdio>
 
 #include "Roboto-Regular.embed"
 #include "Roboto-Italic.embed"

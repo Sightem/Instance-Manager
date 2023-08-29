@@ -1,6 +1,6 @@
-#include "FileManagement.h"
+#include "ui/FileManagement.h"
 
-#include "Logger.h"
+#include "logging/CoreLogger.hpp"
 
 void FileManagement::Draw(const char* title, bool* p_open)
 {
@@ -115,12 +115,12 @@ void FileManagement::CloneDir(std::string packageFamilyName, const std::filesyst
 
             if (full_src_path == dst_path)
             {
-                CoreLogger::GetInstance().Log(LogLevel::INFO, "Source and destination are the same. Skipping copy for {}", full_src_path.string());
+                CoreLogger::Log(LogLevel::INFO, "Source and destination are the same. Skipping copy for {}", full_src_path.string());
                 continue;  // Skip the copy operation for this iteration
             }
 
             if (!FS::CopyDirectory(full_src_path, dst_path)) {
-                CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to copy directory {} to {}", full_src_path.string(), dst_path.string());
+                CoreLogger::Log(LogLevel::ERR, "Failed to copy directory {} to {}", full_src_path.string(), dst_path.string());
             }
         }
     }

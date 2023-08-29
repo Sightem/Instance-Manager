@@ -1,4 +1,4 @@
-#include "AutoRelaunch.h"
+#include "ui/AutoRelaunch.h"
 
 void AutoRelaunch::Draw(const char* title, bool* p_open)
 {

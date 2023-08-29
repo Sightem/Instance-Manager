@@ -1,10 +1,10 @@
 #pragma once
 #include "Base.hpp"
 
-#include "ThreadPool.hpp"
+#include "utils/threadpool/ThreadPool.hpp"
 #include "FileManagement.h"
-#include "AutoRelaunch.h"
-#include "QueuedThreadPool.hpp"
+#include "ui/AutoRelaunch.h"
+#include "utils/threadpool/QueuedThreadPool.hpp"
 
 class InstanceManager : public AppBase<InstanceManager>
 {

@@ -1,8 +1,9 @@
 #pragma once
 #include <vector>
-#include "Manager.h"
+#include "manager/Manager.h"
 #include <atomic>
 #include <optional>
+#include <thread>
 #include "imgui.h"
 
 class Group

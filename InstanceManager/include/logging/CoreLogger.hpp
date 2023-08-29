@@ -14,6 +14,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 #include <fstream>
 #include <filesystem>
@@ -27,8 +28,8 @@ struct LogMessage {
     LogLevel severity;
     std::string message;
 
-    LogMessage(const std::string& ts, LogLevel sev, const std::string& msg)
-        : timestamp(ts), severity(sev), message(msg) {}
+    LogMessage(std::string ts, LogLevel sev, std::string msg)
+        : timestamp(std::move(ts)), severity(sev), message(std::move(msg)) {}
 };
 
 namespace fmt {
@@ -70,12 +71,22 @@ public:
     }
 
     template<typename... Args>
-    void Log(LogLevel severity, fmt::format_string<Args...> fmt, Args&&... args) {
+    static void Log(LogLevel severity, fmt::format_string<Args...> fmt, Args&&... args) {
+        GetInstance().InternalLog(severity, fmt, std::forward<Args>(args)...);
+    }
+
+    static void Log(LogLevel severity, const std::string& message) {
+        GetInstance().InternalLog(severity, "{}", message);
+    }
+
+private:
+
+    template<typename... Args>
+    void InternalLog(LogLevel severity, fmt::format_string<Args...> fmt, Args&&... args) {
         auto message = fmt::format(fmt, std::forward<Args>(args)...);
         EnqueueMessage(severity, message);
     }
 
-private:
     std::queue<LogMessage> m_queue;
     std::mutex m_queueLock;
     std::condition_variable m_condition;
