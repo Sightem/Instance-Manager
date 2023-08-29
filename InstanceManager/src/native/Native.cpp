@@ -4,10 +4,11 @@
 #include <TlHelp32.h>
 #include <lmcons.h>
 
-#include "AppLog.hpp"
 #include "Utils.h"
 
 #include <iostream>
+
+#include "Logger.h"
 
 
 namespace Native
@@ -24,7 +25,7 @@ namespace Native
 
         if constexpr (CaptureOutput) {
             if (!CreatePipe(&stdout_read, &stdout_write, &security_attributes, 0)) {
-                AppLog::GetInstance().AddLog("Failed to create pipe");
+                CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to create pipe");
                 if constexpr (CaptureOutput) return "";
                 else return;
             }
@@ -45,7 +46,7 @@ namespace Native
         std::string cmd_line = "powershell.exe -Command \"" + command + "\"";
 
         if (!CreateProcess(NULL, &cmd_line[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &startup_info, &process_info)) {
-            AppLog::GetInstance().AddLog("Failed to create process");
+            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to create process");
             if constexpr (CaptureOutput) return "";
             else return;
         }
@@ -94,13 +95,13 @@ namespace Native
         winrt::com_ptr<IApplicationActivationManager> pAAM;
         HRESULT hr = CoCreateInstance(CLSID_ApplicationActivationManager, NULL, CLSCTX_LOCAL_SERVER, IID_PPV_ARGS(&pAAM));
         if (FAILED(hr)) {
-            AppLog::GetInstance().AddLog("Failed to create IApplicationActivationManager instance. Error code: {}", hr);
+            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to create IApplicationActivationManager instance. Error code: {}", hr);
             return 0;
         }
 
         auto shellItemArray = CreateShellItemArrayFromProtocol(protocolURI);
         if (!shellItemArray) {
-            AppLog::GetInstance().AddLog("Failed to create IShellItemArray from protocol URI.");
+            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to create IShellItemArray from protocol URI.");
             return 0;
         }
 
@@ -108,7 +109,7 @@ namespace Native
         hr = pAAM->ActivateForProtocol(appID.c_str(), shellItemArray.get(), &dwPID);
 
         if (FAILED(hr)) {
-            AppLog::GetInstance().AddLog("Failed to activate UWP app. Error code: {}", hr);
+            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to activate UWP app. Error code: {}", hr);
             return 0;
         }
 
@@ -263,7 +264,7 @@ namespace Native
         DWORD numberOfCores = sysInfo.dwNumberOfProcessors;
 
         if (requestedCores <= 0 || requestedCores > numberOfCores) {
-            AppLog::GetInstance().AddLog("Invalid number of cores requested.");
+            CoreLogger::GetInstance().Log(LogLevel::ERR, "Invalid number of cores requested.");
             return false;
         }
 
@@ -274,12 +275,12 @@ namespace Native
 
         HANDLE hProcess = OpenProcess(PROCESS_SET_INFORMATION, FALSE, processID);
         if (hProcess == NULL) {
-            AppLog::GetInstance().AddLog("Failed to open process. Error code: {}", GetLastError());
+            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to open process. Error code: {}", GetLastError());
             return false;
         }
 
         if (SetProcessAffinityMask(hProcess, mask) == 0) {
-            AppLog::GetInstance().AddLog("Failed to set process affinity. Error code: {}", GetLastError());
+            CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to set process affinity. Error code: {}", GetLastError());
             CloseHandle(hProcess);
             return false;
         }

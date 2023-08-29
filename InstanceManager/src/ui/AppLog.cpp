@@ -2,11 +2,25 @@
 
 #include "imgui.h"
 
+#include "Logger.h"
+
 void AppLog::Clear()
 {
 	m_Buf.clear();
 	m_LineOffsets.clear();
 	m_LineOffsets.push_back(0);
+}
+
+AppLog::AppLog()
+{
+	m_AutoScroll = true;
+	Clear();
+
+	// Register a listener with the central logger
+	CoreLogger::GetInstance().RegisterListener([this](const LogMessage& logMsg) {
+		std::string log = fmt::format("[{}]  {}", logMsg.timestamp, logMsg.message);
+		ProcessLog(log);
+	});
 }
 
 void AppLog::Draw(const char* title, bool* p_open)
@@ -75,27 +89,17 @@ void AppLog::Draw(const char* title, bool* p_open)
 	ImGui::EndChild();
 }
 
-
-void AppLog::m_ProcessLogs()
+void AppLog::ProcessLog(const std::string& log)
 {
-	while (true)
-	{
-		std::string log;
-		{
-			std::unique_lock lock(mtx);
-			cv.wait(lock, [this] { return !m_LogsQueue.empty() || m_StopWorker; });
-			if (m_StopWorker && m_LogsQueue.empty()) return;
-			log = m_LogsQueue.front();
-			m_LogsQueue.pop();
-		}
-		// Process the log
-		m_Buf.append(log.data(), log.data() + log.size());
-		m_Buf.append("\n");  // Append newline here
-		size_t oldSize = m_Buf.size() - log.size();
-		for (int newSize = m_Buf.size(); oldSize < newSize; oldSize++)
-			if (m_Buf[static_cast<std::string::size_type>(oldSize)] == '\n')
-				m_LineOffsets.push_back(static_cast<int>(oldSize + 1));
-	}
+	// Append the log to the buffer
+	m_Buf.append(log.data(), log.data() + log.size());
+	m_Buf.append("\n");  // Append newline here
+
+	// Update line offsets
+	size_t oldSize = m_Buf.size() - log.size();
+	for (int newSize = m_Buf.size(); oldSize < newSize; oldSize++)
+		if (m_Buf[static_cast<std::string::size_type>(oldSize)] == '\n')
+			m_LineOffsets.push_back(static_cast<int>(oldSize + 1));
 }
 
 void AppLog::RenderLogLine(const char* line_start, const char* line_end)

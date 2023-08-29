@@ -75,14 +75,14 @@
     <EnableMicrosoftCodeAnalysis>true</EnableMicrosoftCodeAnalysis>
     <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
     <OutDir>..\bin\</OutDir>
-    <IncludePath>$(SolutionDir)InstanceManager\include\ui;$(SolutionDir)InstanceManager\libs\imgui;$(SolutionDir)InstanceManager\include\config;$(SolutionDir)InstanceManager\include\group;$(SolutionDir)InstanceManager\include\manager;$(SolutionDir)InstanceManager\include\filesystem utils;$(SolutionDir)InstanceManager\include\thread pool;$(SolutionDir)InstanceManager\include\queued thread pool;$(SolutionDir)InstanceManager\include\instance control;$(SolutionDir)InstanceManager\include\native;$(SolutionDir)InstanceManager\include\roblox;$(SolutionDir)InstanceManager\include\stb;$(SolutionDir)InstanceManager\include\string utils;$(SolutionDir)InstanceManager\include\utils;$(SolutionDir)InstanceManager\include\mouse controller;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)InstanceManager\include\ui;$(SolutionDir)InstanceManager\libs\imgui;$(SolutionDir)InstanceManager\include\config;$(SolutionDir)InstanceManager\include\group;$(SolutionDir)InstanceManager\include\manager;$(SolutionDir)InstanceManager\include\filesystem utils;$(SolutionDir)InstanceManager\include\thread pool;$(SolutionDir)InstanceManager\include\queued thread pool;$(SolutionDir)InstanceManager\include\instance control;$(SolutionDir)InstanceManager\include\native;$(SolutionDir)InstanceManager\include\roblox;$(SolutionDir)InstanceManager\include\stb;$(SolutionDir)InstanceManager\include\string utils;$(SolutionDir)InstanceManager\include\utils;$(SolutionDir)InstanceManager\include\mouse controller;$(SolutionDir)InstanceManager\include\logger;$(IncludePath)</IncludePath>
     <IntDir>..\bin-int\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <EnableMicrosoftCodeAnalysis>true</EnableMicrosoftCodeAnalysis>
     <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
     <OutDir>..\bin\</OutDir>
-    <IncludePath>$(SolutionDir)InstanceManager\include\ui;$(SolutionDir)InstanceManager\libs\imgui;$(SolutionDir)InstanceManager\include\config;$(SolutionDir)InstanceManager\include\group;$(SolutionDir)InstanceManager\include\manager;$(SolutionDir)InstanceManager\include\filesystem utils;$(SolutionDir)InstanceManager\include\thread pool;$(SolutionDir)InstanceManager\include\queued thread pool;$(SolutionDir)InstanceManager\include\instance control;$(SolutionDir)InstanceManager\include\native;$(SolutionDir)InstanceManager\include\roblox;$(SolutionDir)InstanceManager\include\stb;$(SolutionDir)InstanceManager\include\string utils;$(SolutionDir)InstanceManager\include\utils;$(SolutionDir)InstanceManager\include\mouse controller;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)InstanceManager\include\ui;$(SolutionDir)InstanceManager\libs\imgui;$(SolutionDir)InstanceManager\include\config;$(SolutionDir)InstanceManager\include\group;$(SolutionDir)InstanceManager\include\manager;$(SolutionDir)InstanceManager\include\filesystem utils;$(SolutionDir)InstanceManager\include\thread pool;$(SolutionDir)InstanceManager\include\queued thread pool;$(SolutionDir)InstanceManager\include\instance control;$(SolutionDir)InstanceManager\include\native;$(SolutionDir)InstanceManager\include\roblox;$(SolutionDir)InstanceManager\include\stb;$(SolutionDir)InstanceManager\include\string utils;$(SolutionDir)InstanceManager\include\utils;$(SolutionDir)InstanceManager\include\mouse controller;$(SolutionDir)InstanceManager\include\logger;$(IncludePath)</IncludePath>
     <IntDir>..\bin-int\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -186,6 +186,8 @@
     <ClCompile Include="src\utils\Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\logger\FileLogger.h" />
+    <ClInclude Include="include\logger\Logger.h" />
     <ClInclude Include="include\ui\AppLog.hpp" />
     <ClInclude Include="include\ui\AutoRelaunch.h" />
     <ClInclude Include="include\ui\Base.hpp" />

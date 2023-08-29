@@ -1,6 +1,6 @@
 #include "Manager.h"
 
-#include "AppLog.hpp"
+#include "Logger.h"
 
 #include "Native.h"
 
@@ -22,7 +22,7 @@ DWORD LaunchRoblox(std::string AppID, const std::string& placeid, Args... args) 
 
 	pid = Native::LaunchUWPAppWithProtocol(hAppID, protocolURI);
 	if (pid <= 0) {
-		AppLog::GetInstance().AddLog("Failed to launch Roblox with AppID: {}", AppID);
+		CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to launch Roblox with AppID: {}", AppID);
 	}
 
 	return pid;
@@ -94,7 +94,7 @@ bool Manager::Inject(std::string path)
 		&si,
 		&pi
 	)) {
-		AppLog::GetInstance().AddLog("CreateProcess failed ({})", GetLastError());
+		CoreLogger::GetInstance().Log(LogLevel::ERR, "CreateProcess failed ({})", GetLastError());
 		return false;
 	}
 

@@ -8,7 +8,7 @@
 #include "tinyxml2.h"
 #include "cpr/cpr.h"
 #include "FS.h"
-#include "AppLog.hpp"
+#include "Logger.h"
 
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -217,15 +217,15 @@ namespace Utils
 
         win10t.join();
 
-        AppLog::GetInstance().AddLog("Updated Windows10Universal");
+        CoreLogger::GetInstance().Log(LogLevel::INFO, "Updated Windows10Universal");
 
         crasht.join();
 
-        AppLog::GetInstance().AddLog("Updated CrashHandler");
+        CoreLogger::GetInstance().Log(LogLevel::INFO, "Updated CrashHandler");
 
         appxt.join();
 
-        AppLog::GetInstance().AddLog("Updated AppxManifest");
+        CoreLogger::GetInstance().Log(LogLevel::INFO, "Updated AppxManifest");
     }
 
     bool SaveScreenshotAsPng(const char* filename)

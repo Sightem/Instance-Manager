@@ -1,5 +1,7 @@
 #include "FileManagement.h"
 
+#include "Logger.h"
+
 void FileManagement::Draw(const char* title, bool* p_open)
 {
     if (!ImGui::Begin(title, p_open))
@@ -60,7 +62,7 @@ void FileManagement::DisplayFilesAndDirectories(std::string packageFamilyName, c
                 {
                     if (!Native::OpenInExplorer(info.entry.path().string()))
                     {
-                        AppLog::GetInstance().AddLog("Failed to open directory {}", info.entry.path().string());
+                        //AppLog::GetInstance().AddLog("Failed to open directory {}", info.entry.path().string());
                     }
                 }
 
@@ -113,13 +115,12 @@ void FileManagement::CloneDir(std::string packageFamilyName, const std::filesyst
 
             if (full_src_path == dst_path)
             {
-                AppLog::GetInstance().AddLog("Source and destination are the same. Skipping copy for {}", full_src_path.string());
+                CoreLogger::GetInstance().Log(LogLevel::INFO, "Source and destination are the same. Skipping copy for {}", full_src_path.string());
                 continue;  // Skip the copy operation for this iteration
             }
 
             if (!FS::CopyDirectory(full_src_path, dst_path)) {
-                std::cerr << "Failed to copy directory " << full_src_path << " to " << dst_path << '\n';
-                AppLog::GetInstance().AddLog("Failed to copy directory {} to {}", full_src_path.string(), dst_path.string());
+                CoreLogger::GetInstance().Log(LogLevel::ERR, "Failed to copy directory {} to {}", full_src_path.string(), dst_path.string());
             }
         }
     }
