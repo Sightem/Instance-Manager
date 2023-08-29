@@ -4,8 +4,10 @@
 #include <TlHelp32.h>
 #include <lmcons.h>
 
-#include "AppLog.h"
+#include "AppLog.hpp"
 #include "Utils.h"
+
+#include <iostream>
 
 
 namespace Native
@@ -111,6 +113,39 @@ namespace Native
         }
 
         return dwPID;
+    }
+
+    bool InstallUWPApp(const winrt::hstring& packagePath) {
+        try {
+            winrt::Windows::Management::Deployment::PackageManager packageManager;
+            winrt::Windows::Foundation::Uri packageUri{ packagePath };
+
+            auto deploymentOperation = packageManager.RegisterPackageAsync(packageUri, nullptr, winrt::Windows::Management::Deployment::DeploymentOptions::DevelopmentMode);
+
+            deploymentOperation.get();
+
+            return true;
+        }
+        catch (const winrt::hresult_error& ex) {
+            std::wcerr << L"Installation failed: " << ex.message().c_str() << std::endl;
+            return false;
+        }
+    }
+
+    bool RemoveUWPApp(const winrt::hstring& packageFullName) {
+        try {
+            winrt::Windows::Management::Deployment::PackageManager packageManager;
+
+            auto removalOperation = packageManager.RemovePackageAsync(packageFullName);
+
+            removalOperation.get();
+
+            return true;
+        }
+        catch (const winrt::hresult_error& ex) {
+            std::wcerr << L"Removal failed: " << ex.message().c_str() << std::endl;
+            return false;
+        }
     }
 
     std::string GetCurrentUsername() {

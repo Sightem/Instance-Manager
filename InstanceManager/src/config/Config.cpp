@@ -1,4 +1,4 @@
-#include "Config.h"
+#include "Config.hpp"
 
 
 nlohmann::json& Config::Get()

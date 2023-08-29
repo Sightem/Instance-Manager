@@ -1,7 +1,7 @@
 #pragma once
 #include "imgui.h"
 #include "Base.hpp"
-#include "AppLog.h"
+#include "AppLog.hpp"
 
 #include "InstanceControl.h"
 #include "FS.h"

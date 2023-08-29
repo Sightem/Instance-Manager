@@ -27,3 +27,5 @@ instances/
 /x84-injector/Release/x86-injector.tlog
 /x84-injector/Release
 /x84-injector/x64/Release
+/x84-injector/x64/Debug/x86-injector.tlog
+/x84-injector/x64/Debug

@@ -1,7 +1,8 @@
-#include "AppLog.h"
+#include "AppLog.hpp"
 
+#include "imgui.h"
 
-void AppLog::clear()
+void AppLog::Clear()
 {
 	m_Buf.clear();
 	m_LineOffsets.clear();
@@ -32,7 +33,7 @@ void AppLog::Draw(const char* title, bool* p_open)
 	ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 
 	if (clr)
-		clear();
+		Clear();
 	if (copy)
 		ImGui::LogToClipboard();
 

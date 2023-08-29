@@ -20,6 +20,11 @@ namespace Native
     std::conditional_t<CaptureOutput, std::string, void> RunPowershellCommand(const std::string& command);
     winrt::com_ptr<IShellItemArray> CreateShellItemArrayFromProtocol(const winrt::hstring& protocolURI);
     DWORD LaunchUWPAppWithProtocol(const winrt::hstring& appID, const winrt::hstring& protocolURI);
+    bool InstallUWPApp(const winrt::hstring& packagePath);
+    bool RemoveUWPApp(const winrt::hstring& packageFullName);
+
+
+
     std::string GetCurrentUsername();
     PVOID GetPebAddress(HANDLE ProcessHandle);
     std::string GetCommandlineArguments(DWORD pid);

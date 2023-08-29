@@ -1,6 +1,6 @@
 #include "Manager.h"
 
-#include "AppLog.h"
+#include "AppLog.hpp"
 
 #include "Native.h"
 

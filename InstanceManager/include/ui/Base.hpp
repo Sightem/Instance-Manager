@@ -1,16 +1,18 @@
 #pragma once
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "imgui_impl_glfw.h"
+#include "imgui.h"
 #include <GLFW/glfw3.h>
-#include <cstdlib>
+
+#include <unordered_map>
 #include <functional>
 #include <iostream>
+#include <cstdlib>
 #include <stdio.h>
-#include <unordered_map>
+
 #include "Roboto-Regular.embed"
-#include "Roboto-Bold.embed"
 #include "Roboto-Italic.embed"
+#include "Roboto-Bold.embed"
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
@@ -45,10 +47,6 @@ public:
         glfwSetWindowSize(window, 1920, 1080);
         glfwMakeContextCurrent(window);
         glfwSwapInterval(1);
-
-        glfwSetMouseButtonCallback(window, &Derived::MouseButtonCallback);
-        glfwSetCursorPosCallback(window, &Derived::CursorPosCallback);
-        glfwSetKeyCallback(window, &Derived::KeyCallback);
 
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();

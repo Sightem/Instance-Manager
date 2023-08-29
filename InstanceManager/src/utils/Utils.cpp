@@ -8,7 +8,7 @@
 #include "tinyxml2.h"
 #include "cpr/cpr.h"
 #include "FS.h"
-#include "AppLog.h"
+#include "AppLog.hpp"
 
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION

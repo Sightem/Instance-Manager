@@ -20,7 +20,7 @@ public:
 	AppLog(AppLog const&) = delete;
 	void operator=(AppLog const&) = delete;
 
-	void clear();
+	void Clear();
 
 	template <typename... Args>
 	void AddLog(const char* fmt, const Args&... args)
@@ -46,7 +46,7 @@ private:
 		: m_WorkerThread(&AppLog::m_ProcessLogs, this)
 	{
 		m_AutoScroll = true;
-		clear();
+		Clear();
 	}
 
 	~AppLog()

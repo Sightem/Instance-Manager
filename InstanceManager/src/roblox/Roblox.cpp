@@ -17,16 +17,15 @@
 
 namespace Roblox
 {
-    void NukeInstane(const std::string name, const std::string path)
+    void NukeInstane(const std::string packagefullname, const std::string path)
     {
-        std::string cmd = "Get-AppxPackage -Name \"" + name + "\" | Remove-AppxPackage";
-        Native::RunPowershellCommand<false>(cmd);
+        Native::RemoveUWPApp(winrt::to_hstring(packagefullname));
 
         std::thread([path]() {
-            FS::RemovePath(path);
-            }).detach();
-    }
+			FS::RemovePath(path);
+        }).detach();
 
+    }
 
     std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages() {
         std::unordered_map<std::string, Roblox::Instance> instancesMap;
@@ -41,6 +40,7 @@ namespace Roblox
                     Roblox::Instance instance;
 
                     instance.PackageID = winrt::to_string(package.Id().FullName().c_str());
+                    instance.PackageFullName = winrt::to_string(package.Id().FullName().c_str());
                     instance.PackageFamilyName = winrt::to_string(package.Id().FamilyName().c_str());
                     instance.Version = std::to_string(package.Id().Version().Major) + "." +
                         std::to_string(package.Id().Version().Minor) + "." +
@@ -85,8 +85,8 @@ namespace Roblox
         }
 
         if (instancesMap.find("ROBLOX") != instancesMap.end()) {
-			instancesMap.erase("ROBLOX");
-		}
+            instancesMap.erase("ROBLOX");
+        }
 
         return instancesMap;
     }

@@ -125,8 +125,9 @@ bool InstanceControl::CreateInstance(const std::string& username)
 	ofs.close();
 
 	std::string abs_path = std::filesystem::absolute(path + "\\AppxManifest.xml").string();
-	std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
-	Native::RunPowershellCommand<false>(cmd);
+	//std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
+	//Native::RunPowershellCommand<false>(cmd);
+	Native::InstallUWPApp(winrt::to_hstring(abs_path));
 
 	std::this_thread::sleep_for(std::chrono::seconds(2));
 
@@ -137,7 +138,7 @@ bool InstanceControl::CreateInstance(const std::string& username)
 
 void InstanceControl::DeleteInstance(const std::string& name)
 {
-	Roblox::NukeInstane(instances[name].Name, instances[name].InstallLocation);
+	Roblox::NukeInstane(instances[name].PackageFullName, instances[name].InstallLocation);
 }
 
 void InstanceControl::CreateGroup(const std::string& groupname, const std::vector<std::string>& usernames, const std::string& placeid, const std::string& linkcode, const std::string& dllpath, int launchdelay, int relaunchinterval, ImU32 color)
