@@ -10,9 +10,10 @@
 <h5 align="center">A sleek Instance Manager for the UWP version of Roblox</h5>
 
 <p align="center">
-<a href="#introduction"><b>Introduction</b></a> •
-  <a href="#download"><b>Download</b></a> •
+  <a href="#introduction"><b>Introduction</b></a> •
   <a href="#key-features"><b>Key Features</b></a> •
+  <a href="#download"><b>Download</b></a> •
+  <a href="#building"><b>Building</b></a> •
   <a href="#credits"><b>Credits</b></a> • 
   <a href="#contributors"><b>Contributors</b></a>
 </p>
@@ -51,6 +52,37 @@ Download the latest version of Instance Manager [here](https://example.com).
 
 > **Note**
 > Make sure to have [developer mode](https://learn.microsoft.com/en-us/windows/apps/get-started/developer-mode-features-and-debugging) enabled on your Windows 10 device.
+
+## Building
+
+To build you require following prerequisites:
+- CMake
+- Visual Studio 17+ installed on your system with the Win 10 SDK package
+- vcpkg (optional)
+
+Install all the following packages in any way:
+- OpenCV
+- OpenGl
+- Glfw3
+- Nlohmann JSON
+- Cpr
+- libzippp
+- tinyxml2
+
+> **Note**
+> [vcpkg](https://vcpkg.io/en/getting-started) is recommended for installing the packages.
+
+Add the `-G "Visual Studio 17 2022"` to your command line.
+
+If using VCPKG also include `-DCMAKE_TOOLCHAIN_FILE=<vcpkg_installion_path>/scripts/buildsystems/vcpkg.cmake`
+
+a full command line would look something like this (assuming in root of project):
+```bash
+mkdir build
+cd build
+cmake -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_TOOLCHAIN_FILE=<vcpkg_installion_path>/scripts/buildsystems/vcpkg.cmake ..`
+cmake --build .
+```
 
 ## Credits
 
