@@ -137,10 +137,10 @@ namespace ui
 
     unsigned int ImVec4ToUint32(const ImVec4& color)
     {
-        uint8_t r = static_cast<uint8_t>(color.x * 255.0f);
-        uint8_t g = static_cast<uint8_t>(color.y * 255.0f);
-        uint8_t b = static_cast<uint8_t>(color.z * 255.0f);
-        uint8_t a = static_cast<uint8_t>(color.w * 255.0f);
+        auto r = static_cast<uint8_t>(color.x * 255.0f);
+        auto g = static_cast<uint8_t>(color.y * 255.0f);
+        auto b = static_cast<uint8_t>(color.z * 255.0f);
+        auto a = static_cast<uint8_t>(color.w * 255.0f);
         return (a << 24) | (b << 16) | (g << 8) | r;
     }
 }

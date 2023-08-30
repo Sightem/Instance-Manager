@@ -23,7 +23,7 @@ AppLog::AppLog()
 	});
 }
 
-void AppLog::Draw(const char* title, bool* p_open)
+void AppLog::Draw()
 {
 	// Optiosns menu
 	if (ImGui::BeginPopup("Options"))

@@ -23,7 +23,7 @@ public:
 
 	void Stop();
 
-	ImU32 GetColor();
+	ImU32 GetColor() const;
 
 	void RemoveAccount(const std::string& username);
 private:

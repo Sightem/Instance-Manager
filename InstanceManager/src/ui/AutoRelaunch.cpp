@@ -239,7 +239,7 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 			}
 			else
 			{
-				m_Groups.push_back(groupName);
+				m_Groups.emplace_back(groupName);
 				m_GroupSelection.push_back(false);
 	
 				// Dont care

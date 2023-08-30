@@ -20,12 +20,12 @@ public:
         Clear();
     }
 
-    void Draw(const char* title, bool* p_open = NULL);
+    void Draw();
 
 private:
 	void ProcessLog(const std::string& log);
 
-	void RenderLogLine(const char* line_start, const char* line_end);
+	static void RenderLogLine(const char* line_start, const char* line_end);
 
 	ImGuiTextBuffer m_Buf;
 	ImGuiTextFilter m_Filter;

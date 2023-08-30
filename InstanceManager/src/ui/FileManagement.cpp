@@ -106,7 +106,7 @@ void FileManagement::DisplayFilesAndDirectories(std::string packageFamilyName, c
 
 void FileManagement::CloneDir(std::string packageFamilyName, const std::filesystem::path& full_src_path)
 {
-    static std::string base_src = "C:\\Users\\" + Native::GetCurrentUsername() + "\\AppData\\Local\\Packages";
+    static std::string base_src = Native::GetUserProfilePath() + "\\AppData\\Local\\Packages";
     std::filesystem::path relative_path = full_src_path.lexically_relative(base_src + "\\" + packageFamilyName);
 
     // Iterate through the selected instances and clone the source to each of them

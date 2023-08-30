@@ -294,7 +294,7 @@ void InstanceManager::Update()
 
 	ImGui::Separator();
 
-	m_AppLog.Draw("Log");
+    m_AppLog.Draw();
 
 	ImGui::End();
 

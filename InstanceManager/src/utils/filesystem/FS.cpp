@@ -24,7 +24,8 @@ namespace FS
             std::filesystem::create_directories(abs_dst);
         }
 
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(abs_src)) {
+        auto dir_iter = std::filesystem::recursive_directory_iterator(abs_src);
+        return std::ranges::all_of(dir_iter, [&](const auto& entry) {
             const auto& src_path = entry.path();
             auto dst_path = abs_dst / src_path.lexically_relative(abs_src);
 
@@ -42,11 +43,12 @@ namespace FS
             }
             else {
                 CoreLogger::Log(LogLevel::WARNING, "Skipping non-regular file {}", src_path.string());
+                return true;  // Consider skipping as successful to allow the rest of the files to be copied.
             }
-        }
-
-        return true;
+            return true;
+        });
     }
+
 
     bool RemovePath(const std::filesystem::path& path_to_delete)
     {

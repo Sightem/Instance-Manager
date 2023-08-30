@@ -29,32 +29,26 @@ bool InstanceControl::LaunchInstance(const std::string& username, const std::str
 
 bool InstanceControl::TerminateInstance(const std::string& username)
 {
-	if (m_LaunchedInstances.find(username) == m_LaunchedInstances.end())
-	{
+    if (m_LaunchedInstances.find(username) == m_LaunchedInstances.end())
+    {
+        if (IsGrouped(username))
+        {
+            for (auto& group : m_Groups)
+            {
+                if (group.second->GetColorForManagedAccount(username).has_value())
+                {
+                    group.second->RemoveAccount(username);
+                }
+            }
+        }
+    }
+    else
+    {
+        m_LaunchedInstances[username]->terminate();
+        m_LaunchedInstances.erase(username);
+    }
 
-		if (IsGrouped(username))
-		{
-			for (auto& group : m_Groups)
-			{
-				if (group.second->GetColorForManagedAccount(username).has_value())
-				{
-					group.second->RemoveAccount(username);
-				}
-			}
-
-		}
-
-		return true;
-	}
-	else
-	{
-		auto& manager = m_LaunchedInstances[username];
-		manager->terminate();
-
-		m_LaunchedInstances.erase(username);
-		return true;
-	}
-
+    return true;
 }
 
 bool InstanceControl::IsInstanceRunning(const std::string& username)

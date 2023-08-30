@@ -47,19 +47,6 @@ namespace Utils
         return pattern;
     }
 
-    bool SaveToFile(const std::string& file_path, const std::vector<char8_t>& buffer)
-    {
-        std::ofstream ofs(file_path, std::ios::out | std::ios::binary);
-
-        if (!ofs.is_open())
-            return false;
-
-        ofs.write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
-        ofs.close();
-
-        return true;
-    }
-
     uintptr_t BoyerMooreHorspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize)
     {
         size_t maxShift = signatureSize;
@@ -172,7 +159,7 @@ namespace Utils
     };
 
     bool write_data(const std::string& data, intptr_t userdata) {
-        FileContent* content = reinterpret_cast<FileContent*>(userdata);
+        auto* content = reinterpret_cast<FileContent*>(userdata);
         content->data += data;
         content->read_len += data.size();
         return true;

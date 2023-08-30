@@ -80,7 +80,7 @@ void Group::Stop()
 	delete m_Thread;
 }
 
-ImU32 Group::GetColor()
+ImU32 Group::GetColor() const
 {
 	return m_Color;
 }

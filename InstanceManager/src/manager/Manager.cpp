@@ -18,7 +18,7 @@ DWORD LaunchRoblox(std::string AppID, const std::string& placeid, Args... args) 
 
 	winrt::hstring hAppID = winrt::to_hstring(AppID);
 
-	DWORD pid = -1;
+	DWORD pid;
 
 	pid = Native::LaunchUWPAppWithProtocol(hAppID, protocolURI);
 	if (pid <= 0) {
@@ -56,16 +56,8 @@ bool Manager::start()
 bool Manager::terminate()
 {
 	std::scoped_lock lock(this->mutex);
-	if (this->m_Pid != -1)
-	{
-		HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, this->m_Pid);
-
-		return TerminateProcess(hProcess, 9);
-	}
-	else
-	{
-		return false;
-	}
+    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, this->m_Pid);
+    return TerminateProcess(hProcess, 9);
 }
 
 bool Manager::Inject(std::string path)
@@ -117,5 +109,5 @@ int64_t Manager::GetLifeTime() const
 
 bool Manager::IsRunning() const
 {
-	return this->m_Pid != -1 && Native::IsProcessRunning(this->m_Pid, "Windows10Universal.exe");
+	return Native::IsProcessRunning(this->m_Pid, "Windows10Universal.exe");
 }
