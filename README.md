@@ -49,7 +49,7 @@
 Download the latest version of Instance Manager [here](https://example.com).
 
 > **Note**
-> Make sure to have [developer mode](https://learn.microsoft.com/en-us/windows/apps/get-started/developer-mode-features-and-debugging)
+> Make sure to have [developer mode](https://learn.microsoft.com/en-us/windows/apps/get-started/developer-mode-features-and-debugging) enabled on your Windows 10 device.
 
 ## Credits
 
