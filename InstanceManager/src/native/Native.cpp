@@ -78,40 +78,24 @@ namespace Native
     winrt::com_ptr<IShellItemArray> CreateShellItemArrayFromProtocol(const winrt::hstring& protocolURI) {
         winrt::com_ptr<IShellItem> shellItem;
         HRESULT hr = SHCreateItemFromParsingName(protocolURI.c_str(), nullptr, IID_PPV_ARGS(&shellItem));
-        if (FAILED(hr)) {
-            return nullptr;
-        }
+        winrt::check_hresult(hr);
 
         winrt::com_ptr<IShellItemArray> shellItemArray;
         hr = SHCreateShellItemArrayFromShellItem(shellItem.get(), IID_PPV_ARGS(&shellItemArray));
-        if (FAILED(hr)) {
-            return nullptr;
-        }
+        winrt::check_hresult(hr);
 
         return shellItemArray;
     }
-
     DWORD LaunchUWPAppWithProtocol(const winrt::hstring& appID, const winrt::hstring& protocolURI) {
         winrt::com_ptr<IApplicationActivationManager> pAAM;
         HRESULT hr = CoCreateInstance(CLSID_ApplicationActivationManager, NULL, CLSCTX_LOCAL_SERVER, IID_PPV_ARGS(&pAAM));
-        if (FAILED(hr)) {
-            CoreLogger::Log(LogLevel::ERR, "Failed to create IApplicationActivationManager instance. Error code: {}", hr);
-            return 0;
-        }
+        winrt::check_hresult(hr);
 
         auto shellItemArray = CreateShellItemArrayFromProtocol(protocolURI);
-        if (!shellItemArray) {
-            CoreLogger::Log(LogLevel::ERR, "Failed to create IShellItemArray from protocol URI.");
-            return 0;
-        }
 
         DWORD dwPID = 0;
         hr = pAAM->ActivateForProtocol(appID.c_str(), shellItemArray.get(), &dwPID);
-
-        if (FAILED(hr)) {
-            CoreLogger::Log(LogLevel::ERR, "Failed to activate UWP app. Error code: {}", hr);
-            return 0;
-        }
+        winrt::check_hresult(hr);
 
         return dwPID;
     }

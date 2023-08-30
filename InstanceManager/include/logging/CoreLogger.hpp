@@ -19,6 +19,8 @@
 #include <fstream>
 #include <filesystem>
 
+#include <winrt/Windows.Foundation.h>
+
 enum class LogLevel {
     DEBUG, INFO, WARNING, ERR
 };
@@ -52,7 +54,36 @@ namespace fmt {
             return fmt::format_to(ctx.out(), "{}", log_string);
         }
     };
+}
 
+namespace fmt {
+    template <>
+    struct formatter<winrt::hstring> {
+        template <typename ParseContext>
+        constexpr auto parse(ParseContext& ctx) {
+            return ctx.begin();
+        }
+
+        template <typename FormatContext>
+        auto format(const winrt::hstring& hstr, FormatContext& ctx) {
+            return fmt::format_to(ctx.out(), "{}", winrt::to_string(hstr));
+        }
+    };
+}
+
+namespace fmt {
+    template <>
+    struct formatter<winrt::hresult> {
+        template <typename ParseContext>
+        constexpr auto parse(ParseContext& ctx) {
+            return ctx.begin();
+        }
+
+        template <typename FormatContext>
+        auto format(const winrt::hresult& hr, FormatContext& ctx) {
+            return fmt::format_to(ctx.out(), "{:#X}", static_cast<int32_t>(hr));
+        }
+    };
 }
 
 
@@ -114,7 +145,7 @@ private:
         auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
         std::ostringstream timestamp;
-        std::tm local_tm;
+        std::tm local_tm{};
         localtime_s(&local_tm, &now_time_t);
 
         timestamp << std::put_time(&local_tm, "%Y-%m-%d %H:%M:%S")

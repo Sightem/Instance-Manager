@@ -4,54 +4,59 @@
 
 #include "native/Native.h"
 
-template<typename... Args>
-DWORD LaunchRoblox(std::string AppID, const std::string& placeid, Args... args) {
-	auto protocolStringGenerator = [&]() {
-		if constexpr (sizeof...(Args) == 0)
-			return "roblox://placeId=" + placeid;
-		else if constexpr (sizeof...(Args) == 1)
-			return fmt::format("roblox://placeId={}&linkCode={}", placeid, args...);
-	};
+std::optional<DWORD> LaunchRobloxInternal(const std::string& AppID, const std::string& protocolString) {
+    winrt::hstring protocolURI = winrt::to_hstring(protocolString);
+    winrt::hstring hAppID = winrt::to_hstring(AppID);
 
-	std::string protocolString = protocolStringGenerator();
-	winrt::hstring protocolURI = winrt::to_hstring(protocolString);
+    try {
+        DWORD pid = Native::LaunchUWPAppWithProtocol(hAppID, protocolURI);
+        if (pid <= 0) {
+            CoreLogger::Log(LogLevel::ERR, "Failed to launch Roblox with AppID: {}", AppID);
+            return std::nullopt;
+        }
+        return pid;
+    } catch(const winrt::hresult_error& ex) {
+        CoreLogger::Log(LogLevel::ERR, "Error occurred launching Roblox: {} - HRESULT: {}", ex.code(), winrt::to_string(ex.message()));
+        return std::nullopt;
+    }
+}
 
-	winrt::hstring hAppID = winrt::to_hstring(AppID);
+std::optional<DWORD> LaunchRoblox(const std::string& AppID, const std::string& placeid) {
+    std::string protocolString = "roblox://placeId=" + placeid;
+    return LaunchRobloxInternal(AppID, protocolString);
+}
 
-	DWORD pid;
-
-	pid = Native::LaunchUWPAppWithProtocol(hAppID, protocolURI);
-	if (pid <= 0) {
-		CoreLogger::Log(LogLevel::ERR, "Failed to launch Roblox with AppID: {}", AppID);
-	}
-
-	return pid;
+std::optional<DWORD> LaunchRoblox(const std::string& AppID, const std::string& placeid, const std::string& linkCode) {
+    std::string protocolString = fmt::format("roblox://placeId={}&linkCode={}", placeid, linkCode);
+    return LaunchRobloxInternal(AppID, protocolString);
 }
 
 bool Manager::start()
 {
-	std::scoped_lock lock(this->mutex);
-	DWORD procID;
-	
-	if (this->m_LinkCode == "")
-	{
-		procID = LaunchRoblox(this->m_Instance.AppID, this->m_PlaceID);
-	}
-	else
-	{
-		procID = LaunchRoblox(this->m_Instance.AppID, this->m_PlaceID, this->m_LinkCode);
-	}
+    std::scoped_lock lock(this->mutex);
 
-	if (procID != -1)
-	{
-		this->m_Pid = procID;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+    std::optional<DWORD> procID;
+
+    if (this->m_LinkCode.empty())
+    {
+        procID = LaunchRoblox(this->m_Instance.AppID, this->m_PlaceID);
+    }
+    else
+    {
+        procID = LaunchRoblox(this->m_Instance.AppID, this->m_PlaceID, this->m_LinkCode);
+    }
+
+    if (procID.has_value())
+    {
+        this->m_Pid = procID.value();
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
+
 
 bool Manager::terminate()
 {
