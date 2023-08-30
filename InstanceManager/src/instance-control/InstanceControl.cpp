@@ -138,7 +138,7 @@ bool InstanceControl::CreateInstance(const std::string& username)
 
 void InstanceControl::DeleteInstance(const std::string& name)
 {
-	Roblox::NukeInstane(instances[name].PackageFullName, instances[name].InstallLocation);
+    Roblox::NukeInstance(instances[name].PackageFullName, instances[name].InstallLocation);
 }
 
 void InstanceControl::CreateGroup(const std::string& groupname, const std::vector<std::string>& usernames, const std::string& placeid, const std::string& linkcode, const std::string& dllpath, int launchdelay, int relaunchinterval, ImU32 color)

@@ -5,7 +5,7 @@ nlohmann::json& Config::Get()
     std::scoped_lock guard(mtx);
     hasUnsavedChanges = true;
     saveCondition.notify_one();
-    return config;
+    return m_config;
 }
 
 bool Config::Load(const std::string& configFile)
@@ -16,7 +16,7 @@ bool Config::Load(const std::string& configFile)
     if (!inStream) {
         return false;
     }
-    inStream >> config;
+    inStream >> m_config;
     return true;
 }
 
@@ -30,7 +30,7 @@ bool Config::Save(const std::string& configFile) {
     if (!outStream) {
         return false;
     }
-    outStream << config;
+    outStream << m_config;
     outStream.close();
     hasUnsavedChanges = false;
     return true;
@@ -39,9 +39,9 @@ bool Config::Save(const std::string& configFile) {
 bool Config::GetStringForKey(const std::string& key, char* buffer, size_t bufferSize)
 {
     std::scoped_lock guard(mtx);
-    if (config.contains(key) && config[key].is_string())
+    if (m_config.contains(key) && m_config[key].is_string())
     {
-        std::string value = config[key];
+        std::string value = m_config[key];
         if (value.size() < bufferSize)
         {
             std::strncpy(buffer, value.c_str(), bufferSize);
@@ -51,30 +51,9 @@ bool Config::GetStringForKey(const std::string& key, char* buffer, size_t buffer
     return false;
 }
 
-
-std::optional<long long> Config::tryStoll(const std::string& s) {
-    try {
-        return std::stoll(s);
-    }
-    catch (...) {
-        return std::nullopt;
-    }
-}
-
-std::optional<int> Config::tryStoi(const std::string& s) {
-    try {
-        return std::stoi(s);
-    }
-    catch (...) {
-        return std::nullopt;
-    }
-}
-
 bool Config::isValidString(const std::string& s) {
     return !s.empty();
 }
-
-
 void Config::saveWorker()
 {
     while (isRunning) {

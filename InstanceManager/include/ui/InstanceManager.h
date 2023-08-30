@@ -5,6 +5,7 @@
 #include "FileManagement.h"
 #include "ui/AutoRelaunch.h"
 #include "utils/threadpool/QueuedThreadPool.hpp"
+#include "ui/AppLog.hpp"
 
 class InstanceManager : public AppBase<InstanceManager>
 {
@@ -19,6 +20,7 @@ private:
 	QueuedThreadManager m_QueuedThreadManager;
     FileManagement m_FileManagement;
     AutoRelaunch m_AutoRelaunch;
+    AppLog m_AppLog;
 
 	void RenderProcessControl();
 	std::pair<int, int> MatchTemplate(const std::string& template_path, double threshold);

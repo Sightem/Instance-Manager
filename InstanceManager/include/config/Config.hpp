@@ -74,7 +74,7 @@ private:
 
     void saveWorker();
 
-    nlohmann::json config;
+    nlohmann::json m_config;
     std::mutex mtx;
     std::thread workerThread;
     std::condition_variable saveCondition;

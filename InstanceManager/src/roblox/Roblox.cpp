@@ -15,7 +15,7 @@
 
 namespace Roblox
 {
-    void NukeInstane(const std::string packagefullname, const std::string path)
+    void NukeInstance(const std::string& packagefullname, const std::string& path)
     {
         Native::RemoveUWPApp(winrt::to_hstring(packagefullname));
 
@@ -52,27 +52,36 @@ namespace Roblox
                     }
 
                     // Getting AppListEntry information
-                    auto appListEntries = package.GetAppListEntriesAsync().get();
-                    for (const auto& appListEntry : appListEntries) {
-                        std::string fullName = winrt::to_string(package.Id().FullName().c_str());
-                        size_t underscorePosition = fullName.find('_');
-                        if (underscorePosition != std::string::npos) {
-                            instance.Name = fullName.substr(0, underscorePosition);
-                        }
-                        else {
-                            instance.Name = fullName;
+                    auto asyncOp = package.GetAppListEntriesAsync();
+                    if (asyncOp.Status() == winrt::Windows::Foundation::AsyncStatus::Error) {
+                        std::wcerr << L"Error before calling get on GetAppListEntriesAsync. Error code: " << asyncOp.ErrorCode() << std::endl;
+                    } else if (asyncOp.Status() == winrt::Windows::Foundation::AsyncStatus::Canceled) {
+                        std::wcerr << L"Operation GetAppListEntriesAsync was canceled." << std::endl;
+                    } else {
+                        auto appListEntries = asyncOp.get();
+
+                        for (const auto& appListEntry : appListEntries) {
+                            std::string fullName = winrt::to_string(package.Id().FullName().c_str());
+                            size_t underscorePosition = fullName.find('_');
+                            if (underscorePosition != std::string::npos) {
+                                instance.Name = fullName.substr(0, underscorePosition);
+                            }
+                            else {
+                                instance.Name = fullName;
+                            }
+
+                            instance.AppID = winrt::to_string(appListEntry.AppUserModelId().c_str());
                         }
 
-                        instance.AppID = winrt::to_string(appListEntry.AppUserModelId().c_str());
-                    }
+                        // Extract the desired key using regex
+                        std::string fullName = winrt::to_string(package.Id().Name().c_str());
+                        std::regex r(R"(([^.]+)$)");  // Match any substring that doesn't contain a dot, at the end of the string
+                        std::smatch match;
+                        if (std::regex_search(fullName, match, r) && match.size() > 1) {
+                            std::string key = match.str(1);
+                            instancesMap[key] = instance;
+                        }
 
-                    // Extract the desired key using regex
-                    std::string fullName = winrt::to_string(package.Id().Name().c_str());
-                    std::regex r(R"(([^.]+)$)");  // Match any substring that doesn't contain a dot, at the end of the string
-                    std::smatch match;
-                    if (std::regex_search(fullName, match, r) && match.size() > 1) {
-                        std::string key = match.str(1);
-                        instancesMap[key] = instance;
                     }
                 }
             }

@@ -55,7 +55,7 @@ namespace Native
             CloseHandle(stdout_write);
 
             constexpr size_t buffer_size = 4096;
-            std::array<char, buffer_size> buffer;
+            std::array<char, buffer_size> buffer{};
             std::string output;
 
             DWORD bytes_read;
@@ -171,6 +171,15 @@ namespace Native
 
         return "";
     }
+
+    std::string GetUserProfilePath() {
+        const char* userProfile = std::getenv("USERPROFILE");
+        if (userProfile != nullptr) {
+            return std::string(userProfile);
+        }
+        return "";  // Return an empty string if the environment variable is not found
+    }
+
 
     std::set<DWORD> GetInstancesOf(const char* exeName)
     {

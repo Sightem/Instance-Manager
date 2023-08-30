@@ -26,6 +26,7 @@ namespace Native
 
 
     std::string GetCurrentUsername();
+    std::string GetUserProfilePath();
     PVOID GetPebAddress(HANDLE ProcessHandle);
     std::string GetCommandlineArguments(DWORD pid);
     bool OpenInExplorer(const std::string& path, bool isFile = false);

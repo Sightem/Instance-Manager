@@ -11,28 +11,18 @@
 class AppLog
 {
 public:
-	static AppLog& GetInstance()
-	{
-		static AppLog instance;
-		return instance;
-	}
-
-	AppLog(AppLog const&) = delete;
-	void operator=(AppLog const&) = delete;
-
 	void Clear();
 
-	void Draw(const char* title, bool* p_open = NULL);
+    AppLog();
+
+    ~AppLog()
+    {
+        Clear();
+    }
+
+    void Draw(const char* title, bool* p_open = NULL);
+
 private:
-
-	AppLog();
-
-
-	~AppLog()
-	{
-		Clear();
-	}
-
 	void ProcessLog(const std::string& log);
 
 	void RenderLogLine(const char* line_start, const char* line_end);

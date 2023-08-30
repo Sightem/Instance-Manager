@@ -19,7 +19,7 @@ namespace Roblox
         std::string PackageFullName;
     };
 
-    void NukeInstane(const std::string packagefullname, const std::string path);
+    void NukeInstance(const std::string& packagefullname, const std::string& path);
     std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages();
 
     enum ModifyXMLError {

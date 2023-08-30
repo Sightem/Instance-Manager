@@ -2,6 +2,8 @@
 
 #include "logging/CoreLogger.hpp"
 
+#include <ranges>
+
 void FileManagement::Draw(const char* title, bool* p_open)
 {
     if (!ImGui::Begin(title, p_open))
@@ -15,21 +17,22 @@ void FileManagement::Draw(const char* title, bool* p_open)
         cache.clear();
     }
 
-    for (int i = 0; i < instances.size(); ++i)
+    auto SelectedIndices = std::views::iota(0, static_cast<int>(instances.size()))
+                           | std::views::filter([&](int i) { return selection[i]; });
+
+    for (int i : SelectedIndices)
     {
-        if (selection[i])
+        if (ImGui::TreeNode(g_InstanceControl.GetInstance(instances[i]).Name.c_str()))
         {
-            if (ImGui::TreeNode(g_InstanceControl.GetInstance(instances[i]).Name.c_str()))
-            {
-                std::string path = FS::FindFiles(fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages", Native::GetCurrentUsername()), g_InstanceControl.GetInstance(instances[i]).Name + "_")[0];
-                DisplayFilesAndDirectories(g_InstanceControl.GetInstance(instances[i]).PackageFamilyName, path, true);
-                ImGui::TreePop();
-            }
+            std::string path = FS::FindFiles(fmt::format("{}\\AppData\\Local\\Packages", Native::GetUserProfilePath()), g_InstanceControl.GetInstance(instances[i]).Name + "_")[0];
+            DisplayFilesAndDirectories(g_InstanceControl.GetInstance(instances[i]).PackageFamilyName, path, true);
+            ImGui::TreePop();
         }
     }
 
     ImGui::End();
 }
+
 
 void FileManagement::DisplayFilesAndDirectories(std::string packageFamilyName, const std::filesystem::path& directory, bool forceRefresh)
 {

@@ -15,7 +15,6 @@ find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(cpr REQUIRED)
 find_package(tinyxml2 REQUIRED)
-include(FetchContent)
 
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 
