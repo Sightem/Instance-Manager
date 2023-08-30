@@ -80,7 +80,7 @@ a full command line would look something like this (assuming in root of project)
 ```bash
 mkdir build
 cd build
-cmake -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_TOOLCHAIN_FILE=<vcpkg_installion_path>/scripts/buildsystems/vcpkg.cmake ..`
+cmake -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_TOOLCHAIN_FILE=<vcpkg_installion_path>/scripts/buildsystems/vcpkg.cmake ..
 cmake --build .
 ```
 
@@ -106,4 +106,3 @@ This software uses the following open source packages:
 
 # License
 GNU Affero General Public License v3.0
-```
