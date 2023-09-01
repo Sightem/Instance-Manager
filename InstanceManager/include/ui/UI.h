@@ -1,6 +1,7 @@
 #pragma once
 #include "imgui.h"
 #include <string>
+#include <vector>
 
 namespace ui
 {
@@ -18,5 +19,5 @@ namespace ui
     bool BeginSizedListBox(const char* label, float width_ratio, float height_ratio);
 
     unsigned int ImVec4ToUint32(const ImVec4& color);
-
+    bool RenderCombo(const char* label, std::vector<std::string>& items, int& currentItemIdx);
 }

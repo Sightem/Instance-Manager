@@ -29,5 +29,8 @@ private:
 	std::vector<std::string> m_Groups;
 	std::vector<bool> m_GroupSelection;
 
+    std::string m_InjectionMode;
+    std::string m_InjectionMethod;
+
 	char szFile[260] = { 0 };
 };

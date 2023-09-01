@@ -11,6 +11,8 @@
 #include "cpr/cpr.h"
 #include "nlohmann/json.hpp"
 #include "instance-control/InstanceControl.h"
+#include "logging/CoreLogger.hpp"
+
 #define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
 
 namespace Roblox
@@ -239,5 +241,20 @@ namespace Roblox
         }
 
         return result;
+    }
+
+    void HandleCodeValidation(DWORD pid, const std::string& username, const std::string& cookie)
+    {
+        HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+        std::string codeValue = Roblox::FindCodeValue(pHandle, username);
+
+        if (codeValue.empty()) {
+            CoreLogger::Log(LogLevel::INFO, "Code value not found");
+        }
+        else {
+            CoreLogger::Log(LogLevel::INFO, "Code value found: {}", codeValue);
+            Roblox::EnterCode(codeValue, cookie);
+            Roblox::ValidateCode(codeValue, cookie);
+        }
     }
 }

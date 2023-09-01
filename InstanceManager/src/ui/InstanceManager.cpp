@@ -2,20 +2,13 @@
 
 
 #include <opencv2/opencv.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
+#include "imgui_stdlib.h"
 
 #include "ui/AppLog.hpp"
 #include "utils/threadpool/ThreadPool.hpp"
 #include "config/Config.hpp"
-#include "mouse-controller/MouseController.hpp"
-#include "ui/FileManagement.h"
 #include "instance-control/InstanceControl.h"
-#include "ui/AutoRelaunch.h"
-
 #include "ui/UI.h"
-#include "utils/filesystem/FS.h"
-#include "native/Native.h"
 #include "utils/Utils.h"
 #include "utils/string/StringUtils.h"
 #include "logging/CoreLogger.hpp"
@@ -24,8 +17,6 @@
 
 std::vector<std::string> g_InstanceNames = g_InstanceControl.GetInstanceNames();
 std::vector<bool> g_Selection;
-
-MouseController& g_MouseController = MouseController::GetInstance();
 
 InstanceManager::InstanceManager(): m_FileManagement(g_InstanceNames, g_Selection), m_AutoRelaunch(g_InstanceNames)
 {}
@@ -259,7 +250,7 @@ void InstanceManager::Update()
 
 						RenderTerminate();
 						ImGui::TreePop();
-					};
+					}
 
 					RenderSettings();
 
@@ -334,68 +325,15 @@ void InstanceManager::RenderProcessControl()
 		ImGui::TreePop();
 	};
 }
-
-std::pair<int, int> InstanceManager::MatchTemplate(const std::string& template_path, double threshold) {
-	Utils::SaveScreenshotAsPng("screenshot.png");
-
-	cv::Mat screen = cv::imread("screenshot.png");
-	cv::Mat templateIMG = cv::imread(template_path);
-
-	cv::Mat result;
-	cv::matchTemplate(screen, templateIMG, result, cv::TM_CCOEFF_NORMED);
-
-	double minVal, maxVal;
-	cv::Point minLoc, maxLoc;
-	cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
-
-	if (maxVal > threshold) {
-		int xMid = maxLoc.x + (templateIMG.cols / 2);
-		int yMid = maxLoc.y + (templateIMG.rows / 2);
-		CoreLogger::Log(LogLevel::INFO, "Button found from template {} at location: ({}, {})", template_path.c_str(), xMid, yMid);
-		return { xMid, yMid };
-	}
-	else {
-		return { -1, -1 };
-	}
-}
-
-void InstanceManager::PerformMouseAction(int x_mid, int y_mid, std::optional<int> y_offset)
-{
-	g_MouseController.MoveMouse(x_mid, y_mid);
-	g_MouseController.ClickMouse();
-
-	if (y_offset) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(300));
-
-		g_MouseController.MoveMouse(x_mid, y_mid + *y_offset);
-		g_MouseController.ClickMouse();
-	}
-}
-
-void InstanceManager::HandleCodeValidation(DWORD pid, const std::string& username, const char* cookie) 
-{
-	HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-	std::string codeValue = Roblox::FindCodeValue(pHandle, username);
-
-	if (codeValue == "") {
-		CoreLogger::Log(LogLevel::INFO, "Code value not found");
-	}
-	else {
-		CoreLogger::Log(LogLevel::INFO, "Code value found: {}", codeValue);
-		Roblox::EnterCode(codeValue, cookie);
-		Roblox::ValidateCode(codeValue, cookie);
-	}
-}
-
 void InstanceManager::RenderAutoLogin(int n)
 {
 	if (ImGui::TreeNode("Auto Login"))
 	{
-		static char cookie[3000] = "";
+		static std::string cookie;
 
-		ImGui::InputTextWithHint("##cookie", "Cookie", cookie, IM_ARRAYSIZE(cookie));
+		ImGui::InputTextWithHint("##cookie", "Cookie", &cookie);
 
-		if (strlen(cookie) == 0)
+		if (cookie.empty())
 			ImGui::BeginDisabled();
 
 		if (ImGui::Button("Login", ImVec2(320.0f, 0.0f)))
@@ -415,33 +353,33 @@ void InstanceManager::RenderAutoLogin(int n)
 				}
 
 				int x_mid, y_mid;
-				std::tie(x_mid, y_mid) = MatchTemplate("images\\login.png", 0.80);
+				std::tie(x_mid, y_mid) = Utils::MatchTemplate("images\\login.png", 0.80);
 
 				if (x_mid != -1 && y_mid != -1) {
-					PerformMouseAction(x_mid, y_mid, 150);
+					Native::PerformMouseAction(x_mid, y_mid, 150);
 
-					std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                    Utils::SleepFor(std::chrono::milliseconds(300));
 
-					HandleCodeValidation(pid, g_InstanceNames[n], cookie);
+					Roblox::HandleCodeValidation(pid, g_InstanceNames[n], cookie);
 				}
 				else {
-					std::tie(x_mid, y_mid) = MatchTemplate("images\\anotherdev.png", 0.80);
+					std::tie(x_mid, y_mid) = Utils::MatchTemplate("images\\anotherdev.png", 0.80);
 					if (x_mid != -1 && y_mid != -1) {
-						PerformMouseAction(x_mid, y_mid);
+						Native::PerformMouseAction(x_mid, y_mid);
 
-						std::this_thread::sleep_for(std::chrono::milliseconds(300));
+						Utils::SleepFor(std::chrono::milliseconds(300));
 
-						HandleCodeValidation(pid, g_InstanceNames[n], cookie);
+                        Roblox::HandleCodeValidation(pid, g_InstanceNames[n], cookie);
 					}
 				}
 
 				auto end = std::chrono::high_resolution_clock::now();
 				auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 				CoreLogger::Log(LogLevel::INFO, "Auto login took {} milliseconds", dur.count());
-				}).detach();
+            }).detach();
 		}
 
-		if (strlen(cookie) == 0)
+		if (cookie.empty())
 			ImGui::EndDisabled();
 
 		ImGui::TreePop();
@@ -499,7 +437,7 @@ void InstanceManager::RenderSettings()
 
 		if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
 			ForEachSelectedInstance([](int idx) {
-				std::string path = fmt::format("C:\\Users\\{}\\AppData\\Local\\Packages\\{}\\LocalState\\GlobalBasicSettings_13.xml", Native::GetCurrentUsername(), g_InstanceControl.GetInstance(g_InstanceNames[idx]).PackageFamilyName);
+				std::string path = fmt::format(R"({}\AppData\Local\Packages\{}\LocalState\GlobalBasicSettings_13.xml)", Native::GetUserProfilePath(), g_InstanceControl.GetInstance(g_InstanceNames[idx]).PackageFamilyName);
 
 				if (std::filesystem::exists(path))
 					Roblox::ModifySettings(path, graphicsQuality, newMasterVolume, newSavedQuality);
@@ -523,32 +461,34 @@ void InstanceManager::RenderTerminate()
 	}
 }
 
-void InstanceManager::DeleteInstances(const std::set<int>& indices)
-{
-	CoreLogger::Log(LogLevel::INFO, "Deleting instances...");
-
-	// It's safer to erase items from a vector in reverse order
-	auto sortedIndices = indices;
-	for (auto it = sortedIndices.rbegin(); it != sortedIndices.rend(); ++it)
-	{
-		int idx = *it;
-		this->m_QueuedThreadManager.SubmitTask("deleteInstance" + std::to_string(idx), [idx]() {
-			try
-			{
-				g_InstanceControl.DeleteInstance(g_InstanceNames[idx]);
-				g_InstanceNames.erase(g_InstanceNames.begin() + idx);
-			}
-			catch (const std::exception& e)
-			{
-				CoreLogger::Log(LogLevel::ERR, "Failed to delete instance {}: {}", g_InstanceControl.GetInstance(g_InstanceNames[idx]).Name, e.what());
-			}
-
-			}, [&]() {
-				CoreLogger::Log(LogLevel::INFO, "Instance Deleted");
-			});
-	}
+void InstanceManager::SubmitDeleteTask(int idx) {
+    this->m_ThreadManager.SubmitTask("deleteInstance" + std::to_string(idx), [idx]() {
+        try
+        {
+            g_InstanceControl.DeleteInstance(g_InstanceNames[idx]);
+            g_InstanceNames.erase(g_InstanceNames.begin() + idx);
+        }
+        catch (const std::exception& e)
+        {
+            CoreLogger::Log(LogLevel::WARNING, "Failed to delete instance {}: {}", g_InstanceNames[idx], e.what());
+        }
+    }, [&]() {
+        CoreLogger::Log(LogLevel::INFO, "Instance Deleted");
+    });
 }
 
+
+void InstanceManager::DeleteInstances(const std::set<int>& indices)
+{
+    CoreLogger::Log(LogLevel::INFO, "Deleting instances...");
+
+    // It's safer to erase items from a vector in reverse order
+    auto sortedIndices = indices;
+    for (int idx : std::ranges::reverse_view(sortedIndices))
+    {
+        SubmitDeleteTask(idx);
+    }
+}
 
 void InstanceManager::RenderRemoveInstances()
 {
@@ -557,32 +497,19 @@ void InstanceManager::RenderRemoveInstances()
 	if (!AnyInstanceSelected())
 		return;
 
-	if (ui::ConditionalButton("Remove Selected Instances", true, ui::ButtonStyle::Red))
-	{
-		if (!removeDontAskMeNextTime)
-		{
-			ImGui::OpenPopup("Delete?");
-		}
-		else
-		{
-			ForEachSelectedInstance([this](int idx) {
-				this->m_ThreadManager.SubmitTask("deleteInstance", [idx]() {
-					try
-					{
-						g_InstanceControl.DeleteInstance(g_InstanceNames[idx]);
-						g_InstanceNames.erase(g_InstanceNames.begin() + idx);
-					}
-					catch (const std::exception& e)
-					{
-						CoreLogger::Log(LogLevel::WARNING, "Failed to delete instance {}: {}", g_InstanceNames[idx], e.what());
-					}
-					}, [&]() {
-						CoreLogger::Log(LogLevel::INFO, "Instance Deleted");
-					});
-				});
-		}
-	}
-
+    if (ui::ConditionalButton("Remove Selected Instances", true, ui::ButtonStyle::Red))
+    {
+        if (!removeDontAskMeNextTime)
+        {
+            ImGui::OpenPopup("Delete?");
+        }
+        else
+        {
+            ForEachSelectedInstance([this](int idx) {
+                SubmitDeleteTask(idx);
+            });
+        }
+    }
 
 	ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 	ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));

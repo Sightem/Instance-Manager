@@ -1,4 +1,5 @@
 #pragma once
+#include <utility>
 #include <vector>
 #include "manager/Manager.h"
 #include <atomic>
@@ -9,8 +10,8 @@
 class Group
 {
 public:
-	Group(std::unordered_map<std::string, std::shared_ptr<Manager>>&& managers, int restarttime, int launchdelay, std::string dllpath, ImU32 color) : 
-		m_Managers(std::move(managers)), m_IsActive(true), m_RestartTime(restarttime), m_LaunchDelay(launchdelay), m_DllPath(dllpath), m_Color(color) {}
+	Group(std::unordered_map<std::string, std::shared_ptr<Manager>>&& managers, int restarttime, int launchdelay, std::string dllpath, std::string mode, std::string method, ImU32 color) :
+		m_Managers(std::move(managers)), m_IsActive(true), m_RestartTime(restarttime), m_LaunchDelay(launchdelay), m_DllPath(std::move(dllpath)), m_Mode(std::move(mode)), m_Method(std::move(method)), m_Color(color) {}
 
 	~Group()
 	{
@@ -20,6 +21,8 @@ public:
 	std::optional<ImU32> GetColorForManagedAccount(const std::string& username) const;
 
 	void Start();
+
+    void StartManager(const std::shared_ptr<Manager>& manager);
 
 	void Stop();
 
@@ -36,6 +39,8 @@ private:
 	std::atomic_int m_LaunchDelay;
 
 	std::string m_DllPath;
+    std::string m_Mode;
+    std::string m_Method;
 
 	ImU32 m_Color;
 };

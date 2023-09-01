@@ -53,7 +53,7 @@ bool InstanceControl::TerminateInstance(const std::string& username)
 
 bool InstanceControl::IsInstanceRunning(const std::string& username)
 {
-	if (m_LaunchedInstances.find(username.data()) == m_LaunchedInstances.end() || OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, m_LaunchedInstances[username]->GetPID()) == NULL)
+	if (m_LaunchedInstances.find(username) == m_LaunchedInstances.end() || OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, m_LaunchedInstances[username]->GetPID()) == NULL)
 	{
 		return false;
 	}
@@ -117,13 +117,9 @@ bool InstanceControl::CreateInstance(const std::string& username)
 	ofs << buf;
 	ofs.flush();
 	ofs.close();
-
 	std::string abs_path = std::filesystem::absolute(path + "\\AppxManifest.xml").string();
-	//std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
-	//Native::RunPowershellCommand<false>(cmd);
-	Native::InstallUWPApp(winrt::to_hstring(abs_path));
 
-	std::this_thread::sleep_for(std::chrono::seconds(2));
+	Native::InstallUWPApp(winrt::to_hstring(abs_path));
 
 	instances = Roblox::ProcessRobloxPackages();
 
@@ -135,21 +131,21 @@ void InstanceControl::DeleteInstance(const std::string& name)
     Roblox::NukeInstance(instances[name].PackageFullName, instances[name].InstallLocation);
 }
 
-void InstanceControl::CreateGroup(const std::string& groupname, const std::vector<std::string>& usernames, const std::string& placeid, const std::string& linkcode, const std::string& dllpath, int launchdelay, int relaunchinterval, ImU32 color)
+void InstanceControl::CreateGroup(const GroupCreationInfo& info)
 {
 	std::unordered_map<std::string, std::shared_ptr<Manager>> managers;
-	for (const auto& username : usernames)
+	for (const auto& username : info.usernames)
 	{
 		auto it = instances.find(username);
 		if (it != instances.end())
 		{
 			auto& instance = it->second;
-			auto manager = std::make_shared<Manager>(instance, username, placeid, linkcode);
+			auto manager = std::make_shared<Manager>(instance, username, info.placeid, info.linkcode);
 			managers[username] = manager;
 		}
 	}
 
-	auto result = m_Groups.insert({ groupname, std::make_shared<Group>(std::move(managers), relaunchinterval, launchdelay, dllpath, color) });
+	auto result = m_Groups.insert({ info.groupname, std::make_shared<Group>(std::move(managers), info.relaunchinterval, info.launchdelay, info.dllpath, info.mode, info.method, info.color)});
 	if (result.second)
 	{
 		result.first->second->Start();

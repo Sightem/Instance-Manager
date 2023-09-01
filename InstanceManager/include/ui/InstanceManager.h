@@ -11,10 +11,10 @@ class InstanceManager : public AppBase<InstanceManager>
 {
 public:
     InstanceManager();
-    ~InstanceManager() = default;
+    ~InstanceManager() override = default;
 
-	void StartUp();
-	void Update();
+	static void StartUp();
+	void Update() override;
 private:
 	ThreadPool m_ThreadManager;
 	QueuedThreadManager m_QueuedThreadManager;
@@ -23,9 +23,6 @@ private:
     AppLog m_AppLog;
 
 	void RenderProcessControl();
-	std::pair<int, int> MatchTemplate(const std::string& template_path, double threshold);
-	void PerformMouseAction(int x_mid, int y_mid, std::optional<int> y_offset = std::nullopt);
-	void HandleCodeValidation(DWORD pid, const std::string& username, const char* cookie);
 	void RenderAutoLogin(int n);
 	void RenderLaunch(std::string placeid, std::string linkcode, double launchdelay);
 	void RenderSettings();
@@ -36,4 +33,6 @@ private:
 	void RenderUpdateTemplate();
 	void RenderUpdateInstance();
 	bool AnyInstanceSelected();
+
+    void SubmitDeleteTask(int idx);
 };
