@@ -289,6 +289,8 @@ void InstanceManager::Update()
 
 	ImGui::End();
 
+    ImGui::ShowDemoWindow();
+
 	m_FileManagement.Draw("File Management");
 	m_AutoRelaunch.Draw("Auto Relaunch");
 }
