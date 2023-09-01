@@ -1,225 +1,206 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include "CLI11.hpp"
+#include <Windows.h>
 #include <iostream>
+#include <ranges>
 #include <vector>
+#include <optional>
 #include <string>
-#include <sstream>
-#include <stdexcept>
-#include <windows.h>
-#include <span>
-#include <psapi.h>
-#include <string>
-#include <format>
 
-HANDLE OpenProc(DWORD pid)
+#define INJ_ERR_SUCCESS					0x00000000
+#define INJ_ERR_INVALID_PROC_HANDLE		0x00000001	//GetHandleInformation		:	win32 error
+#define INJ_ERR_FILE_DOESNT_EXIST		0x00000002	//GetFileAttributesW		:	win32 error
+#define INJ_ERR_OUT_OF_MEMORY_EXT		0x00000003	//VirtualAllocEx			:	win32 error
+#define INJ_ERR_OUT_OF_MEMORY_INT		0x00000004	//VirtualAlloc				:	win32 error
+#define INJ_ERR_IMAGE_CANT_RELOC		0x00000005	//internal error			:	base relocation directory empty
+#define INJ_ERR_LDRLOADDLL_MISSING		0x00000006	//GetProcAddressEx			:	can't find pointer to LdrLoadDll
+#define INJ_ERR_REMOTEFUNC_MISSING		0x00000007	//LoadFunctionPointer		:	can't find remote function
+#define INJ_ERR_CANT_FIND_MOD_PEB		0x00000008	//internal error			:	module not linked to PEB
+#define INJ_ERR_WPM_FAIL				0x00000009	//WriteProcessMemory		:	win32 error
+#define INJ_ERR_CANT_ACCESS_PEB			0x0000000A	//ReadProcessMemory			:	win32 error
+#define INJ_ERR_CANT_ACCESS_PEB_LDR		0x0000000B	//ReadProcessMemory			:	win32 error
+#define INJ_ERR_VPE_FAIL				0x0000000C	//VirtualProtectEx			:	win32 error
+#define INJ_ERR_CANT_ALLOC_MEM			0x0000000D	//VirtualAllocEx			:	win32 error
+#define INJ_ERR_CT32S_FAIL				0x0000000E	//CreateToolhelp32Snapshot	:	win32 error
+#define	INJ_ERR_RPM_FAIL				0x0000000F	//ReadProcessMemory			:	win32 error
+#define INJ_ERR_INVALID_PID				0x00000010	//internal error			:	process id is 0
+#define INJ_ERR_INVALID_FILEPATH		0x00000011	//internal error			:	INJECTIONDATA::szDllPath is nullptr
+#define INJ_ERR_CANT_OPEN_PROCESS		0x00000012	//OpenProcess				:	win32 error
+#define INJ_ERR_PLATFORM_MISMATCH		0x00000013	//internal error			:	file error (0x20000001 - 0x20000003, check below)
+#define INJ_ERR_NO_HANDLES				0x00000014	//internal error			:	no process handle to hijack
+#define INJ_ERR_HIJACK_NO_NATIVE_HANDLE	0x00000015	//internal error			:	no compatible process handle to hijack
+#define INJ_ERR_HIJACK_INJ_FAILED		0x00000016	//internal error			:	injecting injection module into handle owner process failed, additional errolog(s) created
+#define INJ_ERR_HIJACK_CANT_ALLOC		0x00000017	//VirtualAllocEx			:	win32 error
+#define INJ_ERR_HIJACK_CANT_WPM			0x00000018	//WriteProcessMemory		:	win32 error
+#define INJ_ERR_HIJACK_INJMOD_MISSING	0x00000019	//internal error			:	can't find remote injection module
+#define INJ_ERR_HIJACK_INJECTW_MISSING	0x0000001A	//internal error			:	can't find remote injection function
+#define INJ_ERR_GET_MODULE_HANDLE_FAIL	0x0000001B	//GetModuleHandleA			:	win32 error
+#define INJ_ERR_OUT_OF_MEMORY_NEW		0x0000001C	//operator new				:	internal memory allocation failed
+#define INJ_ERR_REMOTE_CODE_FAILED		0x0000001D	//internal error			:	the remote code wasn't able to load the module
+
+std::unordered_map<DWORD, std::string> errorMessages = {
+        {INJ_ERR_INVALID_PROC_HANDLE, "Invalid process handle. (GetHandleInformation: win32 error)"},
+        {INJ_ERR_FILE_DOESNT_EXIST, "File doesn't exist. (GetFileAttributesW: win32 error)"},
+        {INJ_ERR_OUT_OF_MEMORY_EXT, "Out of memory externally. (VirtualAllocEx: win32 error)"},
+        {INJ_ERR_OUT_OF_MEMORY_INT, "Out of memory internally. (VirtualAlloc: win32 error)"},
+        {INJ_ERR_IMAGE_CANT_RELOC, "Image can't be relocated. (Internal error: base relocation directory empty)"},
+        {INJ_ERR_LDRLOADDLL_MISSING, "LdrLoadDll missing. (GetProcAddressEx: can't find pointer to LdrLoadDll)"},
+        {INJ_ERR_REMOTEFUNC_MISSING, "Remote function missing. (LoadFunctionPointer: can't find remote function)"},
+        {INJ_ERR_CANT_FIND_MOD_PEB, "Can't find module in PEB. (Internal error: module not linked to PEB)"},
+        {INJ_ERR_WPM_FAIL, "WriteProcessMemory failed. (WriteProcessMemory: win32 error)"},
+        {INJ_ERR_CANT_ACCESS_PEB, "Can't access PEB. (ReadProcessMemory: win32 error)"},
+        {INJ_ERR_CANT_ACCESS_PEB_LDR, "Can't access PEB LDR. (ReadProcessMemory: win32 error)"},
+        {INJ_ERR_VPE_FAIL, "VirtualProtectEx failed. (VirtualProtectEx: win32 error)"},
+        {INJ_ERR_CANT_ALLOC_MEM, "Can't allocate memory. (VirtualAllocEx: win32 error)"},
+        {INJ_ERR_CT32S_FAIL, "CreateToolhelp32Snapshot failed. (CreateToolhelp32Snapshot: win32 error)"},
+        {INJ_ERR_RPM_FAIL, "ReadProcessMemory failed. (ReadProcessMemory: win32 error)"},
+        {INJ_ERR_INVALID_PID, "Invalid process ID. (Internal error: process id is 0)"},
+        {INJ_ERR_INVALID_FILEPATH, "Invalid file path. (Internal error: INJECTIONDATA::szDllPath is nullptr)"},
+        {INJ_ERR_CANT_OPEN_PROCESS, "Can't open process. (OpenProcess: win32 error)"},
+        {INJ_ERR_PLATFORM_MISMATCH, "Platform mismatch. (Internal error: file error)"},
+        {INJ_ERR_NO_HANDLES, "No handles available. (Internal error: no process handle to hijack)"},
+        {INJ_ERR_HIJACK_NO_NATIVE_HANDLE, "No native handle for hijacking. (Internal error: no compatible process handle to hijack)"},
+        {INJ_ERR_HIJACK_INJ_FAILED, "Hijack injection failed. (Internal error: injecting injection module into handle owner process failed)"},
+        {INJ_ERR_HIJACK_CANT_ALLOC, "Hijack can't allocate memory. (VirtualAllocEx: win32 error)"},
+        {INJ_ERR_HIJACK_CANT_WPM, "Hijack WriteProcessMemory failed. (WriteProcessMemory: win32 error)"},
+        {INJ_ERR_HIJACK_INJMOD_MISSING, "Hijack injection module missing. (Internal error: can't find remote injection module)"},
+        {INJ_ERR_HIJACK_INJECTW_MISSING, "Hijack InjectW function missing. (Internal error: can't find remote injection function)"},
+        {INJ_ERR_GET_MODULE_HANDLE_FAIL, "GetModuleHandleA failed. (GetModuleHandleA: win32 error)"},
+        {INJ_ERR_OUT_OF_MEMORY_NEW, "Out of memory when using 'new'. (Operator new: internal memory allocation failed)"},
+        {INJ_ERR_REMOTE_CODE_FAILED, "The remote code wasn't able to load the module. (Internal error)"}
+};
+
+enum LAUNCH_METHOD
 {
-    HANDLE hProcess = OpenProcess(
-        PROCESS_CREATE_THREAD | PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_QUERY_INFORMATION,
-        FALSE,
-        pid
-    );
+    LM_NtCreateThreadEx,
+    LM_HijackThread,
+    LM_SetWindowsHookEx,
+    LM_QueueUserAPC,
+    LM_SetWindowLong
+};
 
-    if (!hProcess || hProcess == INVALID_HANDLE_VALUE) {
-        DWORD err = GetLastError();
-        if (err == ERROR_INVALID_PARAMETER) {
-            std::cerr << std::format("[ERROR] [{}] Opening the process failed. Is the process still running?\n", pid);
-            return NULL;
-        }
-        std::cerr << std::format("[ERROR] [{}] Opening the process failed: 0x{:x}\n", pid, err);
-        return NULL;
+enum INJECTION_MODE
+{
+    IM_LoadLibrary,
+    IM_LdrLoadDll
+};
+
+struct INJECTIONDATAW
+{
+    DWORD			LastErrorCode;
+    wchar_t			szDllPath[MAX_PATH * 2];
+    wchar_t* szTargetProcessExeFileName;
+    DWORD			ProcessID;
+    INJECTION_MODE	Mode;
+    LAUNCH_METHOD	Method;
+    DWORD			Flags;
+    DWORD			hHandleValue;
+    HINSTANCE		hDllOut;
+};
+
+std::string getErrorMessage(DWORD errorCode) {
+    if (errorMessages.find(errorCode) != errorMessages.end()) {
+        return errorMessages[errorCode];
     }
-
-    return hProcess;
+    return "Unknown error.";
 }
 
-
-bool IsCompatible(HANDLE hProcess)
+int main(int argc, char* argv[])
 {
-    BOOL isTargetWow64 = FALSE;
-    IsWow64Process(hProcess, &isTargetWow64);
+    CLI::App app("Command-line DLL Injector");
 
-    BOOL isInjectorWow64 = FALSE;
-    IsWow64Process(GetCurrentProcess(), &isInjectorWow64);
+    int processID;
+    std::string dllPath;
+    std::string mode;
+    std::string launchMethod;
 
-    return isTargetWow64 == isInjectorWow64;
-}
+    app.add_option("-p,--pid", processID, "Target Process ID")->required();
+    app.add_option("-d,--dll", dllPath, "Path to the DLL")->required()->check(CLI::ExistingFile);
+    app.add_option("-m,--mode", mode, "Injection mode (LoadLibrary, LdrLoadDll, ManualMap)")->required();
+    app.add_option("-l,--launch-method", launchMethod, "Launch method (NtCreateThreadEx, HijackThread, SetWindowsHookEx, QueueUserAPC, SetWindowLong)")->required();
 
-LPVOID WriteIntoProcess(HANDLE hProcess, LPBYTE buffer, SIZE_T buffer_size, DWORD protect)
-{
-    LPVOID remoteAddress = VirtualAllocEx(hProcess, NULL, buffer_size, MEM_COMMIT | MEM_RESERVE, protect);
-    if (remoteAddress == NULL) {
-        std::cerr << "Could not allocate memory in the remote process\n";
-        return NULL;
-    }
-    if (!WriteProcessMemory(hProcess, remoteAddress, buffer, buffer_size, NULL)) {
-        VirtualFreeEx(hProcess, remoteAddress, buffer_size, MEM_FREE);
-        return NULL;
-    }
-    return remoteAddress;
-}
+    CLI11_PARSE(app, argc, argv);
 
-bool InjectWithLoadLibraryW(HANDLE hProcess, const wchar_t* injectpath)
-{
-    if (!injectpath) {
-        return false;
+    // Load the GH Injector library
+    HMODULE hModule = LoadLibrary(TEXT("GH Injector - x86.dll"));
+    if (!hModule)
+    {
+        std::cerr << "Failed to load the GH Injector library. Error: " << GetLastError() << std::endl;
+        return -1;
     }
 
-    HMODULE hModule = GetModuleHandleW(L"kernel32.dll");
-    if (!hModule) 
-        return false;
-
-    FARPROC hLoadLib = GetProcAddress(hModule, "LoadLibraryW");
-    if (!hLoadLib) 
-        return false;
-
-    std::wstring_view injectpathView(injectpath);
-    SIZE_T injectPathSize = (injectpathView.size() + 1) * sizeof(wchar_t);
-
-    PVOID remote_ptr = WriteIntoProcess(hProcess, (BYTE*)injectpath, injectPathSize, PAGE_READWRITE);
-    if (!remote_ptr) {
-        std::cerr << std::format("Writing to process failed: {:x}\n", GetLastError());
-        return false;
+    // Get the InjectW function
+    typedef DWORD(__stdcall* InjectW_t)(INJECTIONDATAW*);
+    InjectW_t pInjectW = (InjectW_t)GetProcAddress(hModule, "InjectW");
+    if (!pInjectW)
+    {
+        std::cerr << "Failed to retrieve the InjectW function. Error: " << GetLastError() << std::endl;
+        FreeLibrary(hModule);
+        return -1;
     }
 
-    DWORD ret = WAIT_FAILED;
-    HANDLE hndl = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)hLoadLib, remote_ptr, NULL, NULL);
-    if (hndl) [[likely]] {
-        ret = WaitForSingleObject(hndl, 100000);
-        CloseHandle(hndl); hndl = NULL;
-    }
-    else [[unlikely]] {
-        std::cout << "Creating thread failed!\n";
-    }
+    INJECTION_MODE injMode;
+    LAUNCH_METHOD injMethod;
 
-    VirtualFreeEx(hProcess, remote_ptr, 0, MEM_RELEASE);
-    if (ret == WAIT_OBJECT_0) {
-        return true;
-    }
-    return false;
-}
+    std::unordered_map<std::string, INJECTION_MODE> modeMap = {
+            {"LoadLibrary", IM_LoadLibrary},
+            {"LdrLoadDll", IM_LdrLoadDll}
+    };
 
-size_t EnumModules(HANDLE hProcess, HMODULE hMods[], const DWORD hModsMax, DWORD filters)
-{
-    if (hProcess == nullptr) {
-        return 0;
+    if (modeMap.find(mode) != modeMap.end())
+    {
+        injMode = modeMap[mode];
+    }
+    else
+    {
+        std::cerr << "Invalid injection mode specified." << std::endl;
+        FreeLibrary(hModule);
+        return -1;
     }
 
-    DWORD cbNeeded;
+    std::unordered_map<std::string, LAUNCH_METHOD> methodMap = {
+            {"NtCreateThreadEx", LM_NtCreateThreadEx},
+            {"HijackThread", LM_HijackThread},
+            {"SetWindowsHookEx", LM_SetWindowsHookEx},
+            {"QueueUserAPC", LM_QueueUserAPC},
+            {"SetWindowLong", LM_SetWindowLong}
+    };
 
-    if (!EnumProcessModules(hProcess, hMods, hModsMax, &cbNeeded)) {
-        return 0;
+    if (methodMap.find(launchMethod) != methodMap.end())
+    {
+        injMethod = methodMap[launchMethod];
+    }
+    else
+    {
+        std::cerr << "Invalid launch method specified." << std::endl;
+        FreeLibrary(hModule);
+        return -1;
     }
 
-    const size_t modules_count = cbNeeded / sizeof(HMODULE);
-    return modules_count;
-}
+    INJECTIONDATAW injData;
 
-__forceinline WCHAR ToLower(WCHAR c1)
-{
-    if (c1 <= L'Z' && c1 >= L'A') {
-        c1 = (c1 - L'A') + L'a';
+    injData.LastErrorCode = 0;
+    wcscpy(injData.szDllPath, std::wstring(dllPath.begin(), dllPath.end()).c_str());
+    injData.ProcessID = processID;
+    injData.Mode = injMode;
+    injData.Method = injMethod;
+    injData.Flags = 0;
+    injData.hHandleValue = 0;
+    injData.hDllOut = NULL;
+    injData.szTargetProcessExeFileName = NULL;
+
+    DWORD result = pInjectW(&injData);
+    if (result == INJ_ERR_SUCCESS)
+    {
+        std::cout << "Injection successful! DLL Base: " << injData.hDllOut << std::endl;
     }
-    return c1;
-}
-
-bool IsWantedModule(wchar_t* currname, wchar_t* wantedname)
-{
-    if (wantedname == NULL || currname == NULL)
-        return false;
-
-    WCHAR* currEndPointer = currname;
-    while (*currEndPointer != L'\0') {
-        currEndPointer++;
-    }
-
-    if (currEndPointer == currname) 
-        return false;
-
-    wchar_t* wantedEndPointer = wantedname;
-    while (*wantedEndPointer != L'\0') {
-        wantedEndPointer++;
+    else
+    {
+        std::cerr << "Injection failed: " << getErrorMessage(result) << " (Error code: " << std::hex << result << ")" << std::endl;
     }
 
-    if (wantedEndPointer == wantedname) 
-        return false;
-
-    while ((currEndPointer != currname) && (wantedEndPointer != wantedname)) {
-
-        if (ToLower(*wantedEndPointer) != ToLower(*currEndPointer)) {
-            return false;
-        }
-        wantedEndPointer--;
-        currEndPointer--;
-    }
-    return true;
-}
-
-HMODULE SearchModByName(HANDLE hProcess, const std::wstring& searchedName)
-{
-    const DWORD hModsMax = 0x1000;
-    std::vector<HMODULE> hMods(hModsMax, 0);
-
-    size_t modulesCount = EnumModules(hProcess, hMods.data(), hModsMax, LIST_MODULES_32BIT | LIST_MODULES_64BIT);
-
-    wchar_t nameBuf[MAX_PATH] = { 0 };
-
-    for (size_t i = 0; i < modulesCount; ++i) {
-
-        HMODULE hMod = hMods[i];
-        if (!hMod || hMod == INVALID_HANDLE_VALUE) break;
-
-        memset(nameBuf, 0, sizeof(nameBuf));
-        if (GetModuleFileNameExW(hProcess, hMod, nameBuf, MAX_PATH)) 
-        {
-            if (IsWantedModule(nameBuf, (wchar_t*)searchedName.c_str())) 
-            {
-                return hMod;
-            }
-        }
-    }
-    return NULL;
-}
-
-
-bool InjectProcess(DWORD pid, const wchar_t* dll_path)
-{
-    HANDLE hProcess = OpenProc(pid);
-    if (!hProcess) 
-        return false;
-
-    if (!IsCompatible(hProcess)) {
-        CloseHandle(hProcess);
-        std::cerr << "[" << std::dec << pid << "] Injector bitness mismatch, skipping" << std::endl;
-        return false;
-    }
-
-    bool isLoaded = false;
-    bool isInjected = InjectWithLoadLibraryW(hProcess, dll_path);
-    if (SearchModByName(hProcess, dll_path)) {
-        isLoaded = true;
-    }
-    CloseHandle(hProcess);
-
-    return isLoaded;
-}
-
-int main(int argc, char* argv[]) {
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <PID> <DLL_PATH>\n";
-        return 1;
-    }
-
-    int pid = std::stoi(argv[1]);
-
-    std::string dllPath = argv[2];
-
-    std::wstring wpath = std::wstring(dllPath.begin(), dllPath.end());
-
-    if (InjectProcess(pid, wpath.c_str())) {
-        std::cout << "Injection successful\n";
-    }
-    else {
-        std::cerr << "Injection failed\n";
-        return 2;
-    }
+    // Unload the GH Injector library
+    FreeLibrary(hModule);
 
     return 0;
 }

@@ -24,7 +24,7 @@ void FileManagement::Draw(const char* title, bool* p_open)
     {
         if (ImGui::TreeNode(g_InstanceControl.GetInstance(instances[i]).Name.c_str()))
         {
-            std::string path = FS::FindFiles(fmt::format("{}\\AppData\\Local\\Packages", Native::GetUserProfilePath()), g_InstanceControl.GetInstance(instances[i]).Name + "_")[0];
+            std::string path = FS::FindFiles(fmt::format(R"({}\AppData\Local\Packages)", Native::GetUserProfilePath()), g_InstanceControl.GetInstance(instances[i]).Name + "_")[0];
             DisplayFilesAndDirectories(g_InstanceControl.GetInstance(instances[i]).PackageFamilyName, path, true);
             ImGui::TreePop();
         }
@@ -34,7 +34,7 @@ void FileManagement::Draw(const char* title, bool* p_open)
 }
 
 
-void FileManagement::DisplayFilesAndDirectories(std::string packageFamilyName, const std::filesystem::path& directory, bool forceRefresh)
+void FileManagement::DisplayFilesAndDirectories(const std::string& packageFamilyName, const std::filesystem::path& directory, bool forceRefresh)
 {
 
     if (forceRefresh || cache.find(directory.string()) == cache.end())
@@ -65,7 +65,7 @@ void FileManagement::DisplayFilesAndDirectories(std::string packageFamilyName, c
                 {
                     if (!Native::OpenInExplorer(info.entry.path().string()))
                     {
-                        //AppLog::GetInstance().AddLog("Failed to open directory {}", info.entry.path().string());
+                        CoreLogger::Log(LogLevel::ERR, "Failed to open directory {}", info.entry.path().string());
                     }
                 }
 
@@ -104,9 +104,9 @@ void FileManagement::DisplayFilesAndDirectories(std::string packageFamilyName, c
     }
 }
 
-void FileManagement::CloneDir(std::string packageFamilyName, const std::filesystem::path& full_src_path)
+void FileManagement::CloneDir(const std::string& packageFamilyName, const std::filesystem::path& full_src_path)
 {
-    static std::string base_src = Native::GetUserProfilePath() + "\\AppData\\Local\\Packages";
+    static std::string base_src = fmt::format(R"({}\AppData\Local\Packages)", Native::GetUserProfilePath() );
     std::filesystem::path relative_path = full_src_path.lexically_relative(base_src + "\\" + packageFamilyName);
 
     // Iterate through the selected instances and clone the source to each of them

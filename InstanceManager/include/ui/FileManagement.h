@@ -29,6 +29,6 @@ private:
     };
     std::unordered_map<std::string, std::vector<DirectoryEntryInfo>> cache;
 
-    void DisplayFilesAndDirectories(std::string packageFamilyName, const std::filesystem::path& directory, bool forceRefresh = false);
-    void CloneDir(std::string packageFamilyName, const std::filesystem::path& full_src_path);
+    void DisplayFilesAndDirectories(const std::string& packageFamilyName, const std::filesystem::path& directory, bool forceRefresh = false);
+    void CloneDir(const std::string& packageFamilyName, const std::filesystem::path& full_src_path);
 };

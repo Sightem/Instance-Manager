@@ -22,9 +22,7 @@ namespace Native
     DWORD LaunchUWPAppWithProtocol(const winrt::hstring& appID, const winrt::hstring& protocolURI);
     bool InstallUWPApp(const winrt::hstring& packagePath);
     bool RemoveUWPApp(const winrt::hstring& packageFullName);
-
-
-
+    std::optional<DWORD> LaunchAppWithProtocol(const std::string& appName, const std::string& AppID, const std::string& protocolString);
     std::string GetCurrentUsername();
     std::string GetUserProfilePath();
     PVOID GetPebAddress(HANDLE ProcessHandle);
@@ -33,6 +31,7 @@ namespace Native
     bool SetProcessAffinity(DWORD processID, DWORD requestedCores);
     bool IsReadableMemory(const MEMORY_BASIC_INFORMATION& mbi);
     bool IsProcessRunning(DWORD targetPid, const CHAR* expectedName);
+    void PerformMouseAction(int x_mid, int y_mid, std::optional<int> y_offset = std::nullopt);
 
     std::set<DWORD> GetInstancesOf(const char* exeName);
 

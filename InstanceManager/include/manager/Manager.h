@@ -20,7 +20,7 @@ public:
 
 	bool terminate();
 
-	bool Inject(std::string path);
+	bool Inject(const std::string& path, const std::string& mode, const std::string& method) const;
 
 	int64_t GetLifeTime() const;
 

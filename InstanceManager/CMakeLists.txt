@@ -16,7 +16,7 @@ set(REQUIRED_PACKAGES
         tinyxml2
 )
 
-
+# Find packages
 foreach(PACKAGE ${REQUIRED_PACKAGES})
     find_package(${PACKAGE} REQUIRED)
 endforeach()
@@ -26,9 +26,9 @@ include_directories(${PROJECT_NAME} PRIVATE
         include
         libs/stb
         libs/imgui
-        ${OpenCV_INCLUDE_DIRS}
 )
 
+# Add executable
 add_executable(Instance_Manager
         src/config/Config.cpp
         src/group/Group.cpp
@@ -52,9 +52,13 @@ add_executable(Instance_Manager
         libs/imgui/imgui_impl_opengl3.cpp
         libs/imgui/imgui_tables.cpp
         libs/imgui/imgui_widgets.cpp
+        libs/imgui/imgui_stdlib.h
+        libs/imgui/imgui_stdlib.cpp
 
-        main.cpp)
+        main.cpp
+)
 
+# Link libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
         ${OpenCV_LIBS}
         WindowsApp.lib
@@ -69,6 +73,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\" /SUBSYSTEM:CONSOLE")
 
+# Post-build commands
 add_custom_command(
         TARGET Instance_Manager POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -80,4 +85,11 @@ add_custom_command(
         TARGET Instance_Manager POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E tar xf ${CMAKE_CURRENT_BINARY_DIR}/Template/Windows10Universal.zip
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Template
+)
+
+add_custom_command(
+        TARGET Instance_Manager POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/images
+        ${CMAKE_CURRENT_BINARY_DIR}/images
 )

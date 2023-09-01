@@ -1,4 +1,5 @@
 #include "ui/AutoRelaunch.h"
+#include "imgui_stdlib.h"
 
 void AutoRelaunch::Draw(const char* title, bool* p_open)
 {
@@ -121,37 +122,43 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 
 		ImGui::BeginGroup();
 
-		static char groupName[128] = "";
+		static std::string groupName;
 		ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-		ImGui::InputTextWithHint("##group name", "Group name", groupName, IM_ARRAYSIZE(groupName));
+		ImGui::InputTextWithHint("##group name", "Group name", &groupName);
 		ImGui::PopItemWidth();
 
 		ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.25f);
-		static char PlaceID[30] = "";
-		ImGui::InputTextWithHint("##placeidar", "Place ID", PlaceID, IM_ARRAYSIZE(PlaceID));
+		static std::string PlaceID;
+		ImGui::InputTextWithHint("##placeidar", "Place ID", &PlaceID);
 
-		static char vipCode[200] = "";
+		static std::string vipCode;
 		ImGui::SameLine();
-		ImGui::InputTextWithHint("##vipcodear", "VIP Code", vipCode, IM_ARRAYSIZE(vipCode));
-
-		ImGui::SameLine();
-		static char launchDelay[30] = "";
-		ImGui::InputTextWithHint("##launchdelayar", "Launch Delay (Seconds)", launchDelay, IM_ARRAYSIZE(launchDelay));
+		ImGui::InputTextWithHint("##vipcodear", "VIP Code", &vipCode);
 
 		ImGui::SameLine();
-		static char relaunchInterval[30] = "";
-		ImGui::InputTextWithHint("##relaunchintervalar", "Relaunch Interval (Minutes)", relaunchInterval, IM_ARRAYSIZE(relaunchInterval));
+		static std::string launchDelay;
+		ImGui::InputTextWithHint("##launchdelayar", "Launch Delay (Seconds)", &launchDelay);
 
+		ImGui::SameLine();
+		static std::string relaunchInterval;
+		ImGui::InputTextWithHint("##relaunchintervalar", "Relaunch Interval (Minutes)", &relaunchInterval);
 
 		static bool isLoaded = false;
-		if (!isLoaded)
-		{
-			Config::getInstance().GetStringForKey("lastPlaceID", PlaceID, sizeof(PlaceID));
-			Config::getInstance().GetStringForKey("lastVip", vipCode, sizeof(vipCode));
-			Config::getInstance().GetStringForKey("lastDelay", launchDelay, sizeof(launchDelay));
-			Config::getInstance().GetStringForKey("lastInterval", relaunchInterval, sizeof(relaunchInterval));
-			isLoaded = true;
-		}
+        if (!isLoaded)
+        {
+            auto loadConfigValue = [&](const std::string& key, std::string& value) {
+                if (auto optValue = Config::getInstance().GetStringForKey(key); optValue) {
+                    value = *optValue;
+                }
+            };
+
+            loadConfigValue("lastPlaceID", PlaceID);
+            loadConfigValue("lastVip", vipCode);
+            loadConfigValue("lastDelay", launchDelay);
+            loadConfigValue("lastInterval", relaunchInterval);
+
+            isLoaded = true;
+        }
 
 		ImGui::PopItemWidth();
 
@@ -182,9 +189,20 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 			ImVec2 buttonSize = ImGui::CalcTextSize("Open DLL File");
 			float padding = 20.0f; // Some padding between the InputText and the button
 			float inputTextWidth = ImGui::GetContentRegionAvail().x - buttonSize.x - padding;
+			ImGui::PushItemWidth(inputTextWidth);
+
+            std::vector<std::string> injectionModes = { "LoadLibrary", "ManualMap" };
+            static int selectedInjectionMode = 0;
+            ui::RenderCombo("##Injection Mode", injectionModes, selectedInjectionMode);
+            this->m_InjectionMode = injectionModes[selectedInjectionMode];
+
+            std::vector<std::string> injectionMethods = { "NtCreateThreadEx", "HijackThread", "SetWindowsHookEx", "QueueUserAPC", "SetWindowLong" };
+            static int selectedInjectionMethod = 0;
+            ui::RenderCombo("##Injection Method", injectionMethods, selectedInjectionMethod);
+            this->m_InjectionMethod = injectionMethods[selectedInjectionMethod];
+
 
 			// Set the width for the InputText
-			ImGui::PushItemWidth(inputTextWidth);
 			ImGui::InputText("##Selected DLL", szFile, sizeof(szFile));
 			ImGui::PopItemWidth();
 
@@ -217,7 +235,7 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(25, 92, 25, 255));
 		ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(33, 123, 33, 255));
 
-		if (strlen(groupName) == 0 || strlen(PlaceID) == 0 || strlen(relaunchInterval) == 0 || std::count(m_InstanceSelection.begin(), m_InstanceSelection.end(), true) == 0)
+		if (groupName.empty() || PlaceID.empty() || relaunchInterval.empty() || std::count(m_InstanceSelection.begin(), m_InstanceSelection.end(), true) == 0)
 		{
 			ImGui::BeginDisabled();
 		}
@@ -241,9 +259,20 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 			{
 				m_Groups.emplace_back(groupName);
 				m_GroupSelection.push_back(false);
-	
-				// Dont care
-				g_InstanceControl.CreateGroup(groupName, selectedInstances, PlaceID, vipCode, std::string(szFile), strlen(launchDelay) == 0 ? 0 : atoi(launchDelay), strlen(relaunchInterval) == 0 ? 0 : atoi(relaunchInterval), ui::ImVec4ToUint32(color));
+
+                InstanceControl::GroupCreationInfo groupInfo;
+                groupInfo.groupname = groupName;
+                groupInfo.usernames = selectedInstances;
+                groupInfo.placeid = PlaceID;
+                groupInfo.linkcode = vipCode;
+                groupInfo.dllpath = std::string(szFile);
+                groupInfo.mode = this->m_InjectionMode;
+                groupInfo.method = this->m_InjectionMethod;
+                groupInfo.launchdelay = launchDelay.empty() ? 0 : std::stoi(launchDelay);
+                groupInfo.relaunchinterval = std::stoi(relaunchInterval);
+                groupInfo.color = ui::ImVec4ToUint32(color);
+
+                g_InstanceControl.CreateGroup(groupInfo);
 			}
 
 			Config::getInstance().UpdateConfig<std::string>("lastPlaceID", PlaceID);
@@ -252,7 +281,7 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 			Config::getInstance().UpdateConfig<std::string>("lastInterval", relaunchInterval);
 		}
 
-		if (strlen(groupName) == 0 || strlen(PlaceID) == 0 || strlen(relaunchInterval) == 0 || std::count(m_InstanceSelection.begin(), m_InstanceSelection.end(), true) == 0)
+		if (groupName.empty() || PlaceID.empty() || relaunchInterval.empty() || std::count(m_InstanceSelection.begin(), m_InstanceSelection.end(), true) == 0)
 		{
 			ImGui::EndDisabled();
 		}

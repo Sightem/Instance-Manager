@@ -33,7 +33,20 @@ public:
 
 	void DeleteInstance(const std::string& name);
 
-	void CreateGroup(const std::string& groupname, const std::vector<std::string>& username, const std::string& placeid, const std::string& linkcode, const std::string& dllpath, int launchdelay, int relaunchinterval, ImU32 color);
+    struct GroupCreationInfo {
+        std::string groupname;
+        std::vector<std::string> usernames;
+        std::string placeid;
+        std::string linkcode;
+        std::string dllpath;
+        std::string mode;
+        std::string method;
+        int launchdelay;
+        int relaunchinterval;
+        ImU32 color;
+    };
+
+    void CreateGroup(const GroupCreationInfo& info);
 
 	ImU32 GetGroupColor(const std::string& groupname);
 

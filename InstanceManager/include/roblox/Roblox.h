@@ -20,6 +20,7 @@ namespace Roblox
     };
 
     void NukeInstance(const std::string& packagefullname, const std::string& path);
+    void HandleCodeValidation(DWORD pid, const std::string& username, const std::string& cookie);
     std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages();
 
     enum ModifyXMLError {

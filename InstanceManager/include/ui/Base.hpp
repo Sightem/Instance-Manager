@@ -263,7 +263,7 @@ public:
         }
     }
 
-    void Update()
+    virtual void Update()
     {
         static_cast<Derived*>(this)->Update();
     }

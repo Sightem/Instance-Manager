@@ -1,9 +1,12 @@
 #include "group/Group.h"
+#include "utils/Utils.h"
 #include <chrono>
+#include <algorithm>
 
-using Clock = std::chrono::steady_clock;
 using Minutes = std::chrono::minutes;
 using Seconds = std::chrono::seconds;
+
+constexpr int ROBLOXWAITTIME = 7;
 
 std::optional<ImU32> Group::GetColorForManagedAccount(const std::string& username) const
 {
@@ -14,62 +17,56 @@ std::optional<ImU32> Group::GetColorForManagedAccount(const std::string& usernam
 	return std::nullopt;
 }
 
+void Group::StartManager(const std::shared_ptr<Manager>& manager)
+{
+    manager->start();
+
+    if (!m_DllPath.empty())
+    {
+        Utils::SleepFor(std::chrono::seconds(2));
+        manager->Inject(m_DllPath, m_Mode, m_Method);
+    }
+
+    Utils::SleepFor(Seconds(m_LaunchDelay.load(std::memory_order_relaxed)));
+}
+
 void Group::Start()
 {
-	m_Thread = new std::thread([this]() {
-		
-		while (this->m_IsActive)
-		{
-			for (auto& manager : this->m_Managers)
-			{
-				manager.second->start();
+    m_Thread = new std::thread([this]() {
 
-				std::this_thread::sleep_for(Seconds(2));
+        while (this->m_IsActive)
+        {
+            for (const auto& [username, manager] : m_Managers)
+            {
+                StartManager(manager);
+            }
 
-				if (!this->m_DllPath.empty())
-				{
-					manager.second->Inject(this->m_DllPath);
-				}
+            auto start = std::chrono::system_clock::now();
 
-				std::this_thread::sleep_for(Seconds(this->m_LaunchDelay.load(std::memory_order_relaxed)));
-			}
+            while (m_IsActive.load(std::memory_order_relaxed) &&
+                   std::chrono::duration_cast<Minutes>(std::chrono::system_clock::now() - start).count() < m_RestartTime.load(std::memory_order_relaxed))
+            {
+                Utils::SleepFor(Seconds(1));
 
+                for (const auto& [username, manager] : m_Managers)
+                {
+                    if (!manager->IsRunning())
+                    {
+                        Utils::SleepFor(Seconds(ROBLOXWAITTIME));
+                        StartManager(manager);
+                    }
+                }
+            }
 
-			auto start = Clock::now();
-			while (m_IsActive.load(std::memory_order_relaxed) && std::chrono::duration_cast<Minutes>(Clock::now() - start).count() < m_RestartTime.load(std::memory_order_relaxed))
-			{
-				std::this_thread::sleep_for(Seconds(1));
+            for (const auto& [username, manager] : m_Managers)
+            {
+                manager->terminate();
+            }
 
-				for (auto& manager : this->m_Managers)
-				{
-					if (!manager.second->IsRunning())
-					{
-						std::this_thread::sleep_for(Seconds(7));
-
-						manager.second->start();
-
-						std::this_thread::sleep_for(Seconds(2));
-
-						if (!this->m_DllPath.empty())
-						{
-							manager.second->Inject(this->m_DllPath);
-						}
-
-						std::this_thread::sleep_for(Seconds(this->m_LaunchDelay.load(std::memory_order_relaxed)));
-					}
-				}
-
-			}
-
-			for (auto& manager : this->m_Managers)
-			{
-				manager.second->terminate();
-			}
-
-			if (m_IsActive.load(std::memory_order_relaxed))
-				std::this_thread::sleep_for(Seconds(10));
-		}
-	});
+            if (m_IsActive.load(std::memory_order_relaxed))
+                Utils::SleepFor(Seconds(ROBLOXWAITTIME));
+        }
+    });
 }
 
 

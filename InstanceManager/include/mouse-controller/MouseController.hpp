@@ -8,12 +8,21 @@
 
 class MouseController {
 public:
-    MouseController(const MouseController&) = delete;
-    MouseController& operator=(const MouseController&) = delete;
+    MouseController() {
+        m_ntUserSendInputBytes.resize(30); // Reserve space for 30 bytes
 
-    static MouseController& GetInstance() {
-        static MouseController instance;  // This is thread-safe in C++11 and later.
-        return instance;
+        FARPROC NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("win32u"), "NtUserSendInput");
+        if (!NtUserSendInput_Addr) {
+            NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("user32"), "NtUserSendInput");
+            if (!NtUserSendInput_Addr) {
+                NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("user32"), "SendInput");
+                if (!NtUserSendInput_Addr) {
+                    throw std::runtime_error("Failed to locate the NtUserSendInput or equivalent function.");
+                }
+            }
+        }
+
+        memcpy(m_ntUserSendInputBytes.data(), reinterpret_cast<PVOID>(NtUserSendInput_Addr), 30);
     }
 
     BOOLEAN MoveMouse(int x, int y) {
@@ -32,39 +41,24 @@ public:
         return SpoofedSendInput(1, &input, sizeof(input));
     }
 
-
     BOOLEAN ClickMouse() {
         INPUT input[2] = {};
 
-        // Left button down
-        input[0].type = INPUT_MOUSE;
-        input[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+        bool isSwapped = GetSystemMetrics(SM_SWAPBUTTON) != 0;
 
-        // Left button up
+        DWORD downFlag = isSwapped ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
+        DWORD upFlag = isSwapped ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
+
+        input[0].type = INPUT_MOUSE;
+        input[0].mi.dwFlags = downFlag;
+
         input[1].type = INPUT_MOUSE;
-        input[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+        input[1].mi.dwFlags = upFlag;
 
         return SpoofedSendInput(2, input, sizeof(INPUT));
     }
 
 private:
-    MouseController() {
-        m_ntUserSendInputBytes.resize(30); // Reserve space for 30 bytes
-
-        FARPROC NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("win32u"), "NtUserSendInput");
-        if (!NtUserSendInput_Addr) {
-            NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("user32"), "NtUserSendInput");
-            if (!NtUserSendInput_Addr) {
-                NtUserSendInput_Addr = GetProcAddress(GetModuleHandle("user32"), "SendInput");
-                if (!NtUserSendInput_Addr) {
-                    throw std::runtime_error("Failed to locate the NtUserSendInput or equivalent function.");
-                }
-            }
-        }
-
-        memcpy(m_ntUserSendInputBytes.data(), reinterpret_cast<PVOID>(NtUserSendInput_Addr), 30);
-    }
-
     static float m_GetDPIScalingFactor() {
         HDC screen = GetDC(NULL);
         float dpiScaling = static_cast<float>(GetDeviceCaps(screen, LOGPIXELSX)) / 96.0f;
@@ -91,5 +85,3 @@ private:
         return (Result > 0);
     }
 };
-
-extern MouseController& g_MouseController;

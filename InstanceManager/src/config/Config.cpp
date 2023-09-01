@@ -36,20 +36,16 @@ bool Config::Save(const std::string& configFile) {
     return true;
 }
 
-bool Config::GetStringForKey(const std::string& key, char* buffer, size_t bufferSize)
+std::optional<std::string> Config::GetStringForKey(const std::string& key)
 {
     std::scoped_lock guard(mtx);
     if (m_config.contains(key) && m_config[key].is_string())
     {
-        std::string value = m_config[key];
-        if (value.size() < bufferSize)
-        {
-            std::strncpy(buffer, value.c_str(), bufferSize);
-            return true;
-        }
+        return m_config[key].get<std::string>();
     }
-    return false;
+    return std::nullopt;
 }
+
 
 bool Config::isValidString(const std::string& s) {
     return !s.empty();

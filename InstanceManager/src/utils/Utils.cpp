@@ -4,6 +4,10 @@
 #include <filesystem>
 #define NOMINMAX
 #include <windows.h>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 #include "tinyxml2.h"
 #include "cpr/cpr.h"
@@ -263,5 +267,31 @@ namespace Utils
         int result = stbi_write_png(filename, screenWidth, screenHeight, 3, lpBitmapBits.data(), screenWidth * 3);
         return result != 0;
     }
+
+    std::pair<int, int> MatchTemplate(const std::string &template_path, double threshold)
+    {
+        Utils::SaveScreenshotAsPng("screenshot.png");
+
+        cv::Mat screen = cv::imread("screenshot.png");
+        cv::Mat templateIMG = cv::imread(template_path);
+
+        cv::Mat result;
+        cv::matchTemplate(screen, templateIMG, result, cv::TM_CCOEFF_NORMED);
+
+        double minVal, maxVal;
+        cv::Point minLoc, maxLoc;
+        cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
+
+        if (maxVal > threshold) {
+            int xMid = maxLoc.x + (templateIMG.cols / 2);
+            int yMid = maxLoc.y + (templateIMG.rows / 2);
+            CoreLogger::Log(LogLevel::INFO, "Button found from template {} at location: ({}, {})", template_path.c_str(), xMid, yMid);
+            return { xMid, yMid };
+        }
+        else {
+            return { -1, -1 };
+        }
+    }
+
 
 }

@@ -24,26 +24,11 @@ public:
 
     bool Save(const std::string& configFile);
 
-    bool GetStringForKey(const std::string& key, char* buffer, size_t bufferSize);
+    std::optional<std::string> GetStringForKey(const std::string& key);
 
-    // Generic update method
     template <typename T>
     void UpdateConfig(const std::string& key, const std::string& value) {
-        if constexpr (std::is_same_v<T, long long>) {
-            auto optValue = tryStoll(value);
-            if (optValue) {
-                auto& config = Get();
-                config[key] = *optValue;
-            }
-        }
-        else if constexpr (std::is_same_v<T, int>) {
-            auto optValue = tryStoi(value);
-            if (optValue) {
-                auto& config = Get();
-                config[key] = *optValue;
-            }
-        }
-        else if constexpr (std::is_same_v<T, std::string>) {
+     if constexpr (std::is_same_v<T, std::string>) {
             if (isValidString(value)) {
                 auto& config = Get();
                 config[key] = value;
@@ -51,12 +36,7 @@ public:
         }
     }
 
-
 private:
-
-    std::optional<long long> tryStoll(const std::string& s);
-
-    std::optional<int> tryStoi(const std::string& s);
 
     bool isValidString(const std::string& s);
 

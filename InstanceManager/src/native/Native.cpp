@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include "logging/CoreLogger.hpp"
+#include "mouse-controller/MouseController.hpp"
 
 
 namespace Native
@@ -150,7 +151,7 @@ namespace Native
         DWORD username_len = UNLEN + 1;
 
         if (GetUserName(username, &username_len)) {
-            return std::string(username);
+            return { username };
         }
 
         return "";
@@ -159,7 +160,7 @@ namespace Native
     std::string GetUserProfilePath() {
         const char* userProfile = std::getenv("USERPROFILE");
         if (userProfile != nullptr) {
-            return std::string(userProfile);
+            return std::string{userProfile};
         }
         return "";  // Return an empty string if the environment variable is not found
     }
@@ -365,6 +366,35 @@ namespace Native
         }
 
         return "";
+    }
+
+    std::optional<DWORD> LaunchAppWithProtocol(const std::string &appName, const std::string &AppID, const std::string &protocolString) {
+        winrt::hstring protocolURI = winrt::to_hstring(protocolString);
+        winrt::hstring hAppID = winrt::to_hstring(AppID);
+
+        try {
+            DWORD pid = Native::LaunchUWPAppWithProtocol(hAppID, protocolURI);
+            if (pid <= 0) {
+                CoreLogger::Log(LogLevel::ERR, "Failed to launch {} with AppID: {}", appName, AppID);
+                return std::nullopt;
+            }
+            return pid;
+        } catch (const winrt::hresult_error& ex) {
+            CoreLogger::Log(LogLevel::ERR, "Error occurred launching {}: {} - HRESULT: {}", appName, ex.code(), winrt::to_string(ex.message()));
+            return std::nullopt;
+        }
+    }
+
+    void PerformMouseAction(int x_mid, int y_mid, std::optional<int> y_offset)
+    {
+        static MouseController mouseController;
+        mouseController.MoveMouse(x_mid, y_mid);
+        mouseController.ClickMouse();
+        if (y_offset) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            mouseController.MoveMouse(x_mid, y_mid + *y_offset);
+            mouseController.ClickMouse();
+        }
     }
 }
 
