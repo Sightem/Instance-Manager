@@ -352,6 +352,12 @@ void InstanceManager::RenderAutoLogin(int n)
 					pid = g_InstanceControl.GetManager(g_InstanceNames[index])->GetPID();
 				}
 
+                HWND hWnd = FindWindow(NULL, g_InstanceControl.GetInstance(g_InstanceNames[n]).DisplayName.c_str());
+
+                SetForegroundWindow(hWnd);
+
+                Utils::SleepFor(std::chrono::milliseconds(300));
+
 				int x_mid, y_mid;
 				std::tie(x_mid, y_mid) = Utils::MatchTemplate("images\\login.png", 0.80);
 
@@ -360,7 +366,7 @@ void InstanceManager::RenderAutoLogin(int n)
 
                     Utils::SleepFor(std::chrono::milliseconds(300));
 
-					Roblox::HandleCodeValidation(pid, g_InstanceNames[n], cookie);
+					Roblox::HandleCodeValidation(pid, cookie);
 				}
 				else {
 					std::tie(x_mid, y_mid) = Utils::MatchTemplate("images\\anotherdev.png", 0.80);
@@ -369,7 +375,7 @@ void InstanceManager::RenderAutoLogin(int n)
 
 						Utils::SleepFor(std::chrono::milliseconds(300));
 
-                        Roblox::HandleCodeValidation(pid, g_InstanceNames[n], cookie);
+                        Roblox::HandleCodeValidation(pid, cookie);
 					}
 				}
 

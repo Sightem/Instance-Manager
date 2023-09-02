@@ -17,10 +17,11 @@ namespace Roblox
         std::string PackageFamilyName;
         std::string Version;
         std::string PackageFullName;
+        std::string DisplayName;
     };
 
     void NukeInstance(const std::string& packagefullname, const std::string& path);
-    void HandleCodeValidation(DWORD pid, const std::string& username, const std::string& cookie);
+    void HandleCodeValidation(DWORD pid, const std::string& cookie);
     std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages();
 
     enum ModifyXMLError {
@@ -35,6 +36,6 @@ namespace Roblox
     std::string EnterCode(std::string code, std::string cookie);
     std::string ValidateCode(std::string code, std::string cookie);
     std::string ExtractCode(const unsigned char* data, size_t dataSize);
-    std::string FindCodeValue(HANDLE pHandle, const std::string& name);
+    std::string FindCodeValue(HANDLE pHandle);
     std::vector<std::string> GetNewInstances(const std::vector<std::string>& old_instances);
 }

@@ -73,6 +73,8 @@ namespace Roblox
                             }
 
                             instance.AppID = winrt::to_string(appListEntry.AppUserModelId().c_str());
+                            winrt::Windows::ApplicationModel::AppDisplayInfo displayInfo = appListEntry.DisplayInfo();
+                            instance.DisplayName = winrt::to_string(displayInfo.DisplayName().c_str());
                         }
 
                         // Extract the desired key using regex
@@ -201,13 +203,7 @@ namespace Roblox
         return code;
     }
 
-    std::string FindCodeValue(HANDLE pHandle, const std::string& name) {
-
-        std::string windowName = std::string("Roblox ") + name;
-        HWND hWnd = FindWindow(NULL, windowName.c_str());
-
-        SetForegroundWindow(hWnd);
-
+    std::string FindCodeValue(HANDLE pHandle) {
         // First pattern: key=???????-????-????-????-????????????&code=
         auto pattern1 = Utils::ParsePattern("6B 65 79 3D ?? ?? ?? ?? ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? 2D ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 26 63 6F 64 65 3D");
         std::string codeValue = Native::SearchEntireProcessMemory(pHandle, pattern1.data(), pattern1.size(), Roblox::ExtractCode);
@@ -243,10 +239,11 @@ namespace Roblox
         return result;
     }
 
-    void HandleCodeValidation(DWORD pid, const std::string& username, const std::string& cookie)
+    void HandleCodeValidation(DWORD pid, const std::string& cookie)
     {
         HANDLE pHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-        std::string codeValue = Roblox::FindCodeValue(pHandle, username);
+
+        std::string codeValue = Roblox::FindCodeValue(pHandle);
 
         if (codeValue.empty()) {
             CoreLogger::Log(LogLevel::INFO, "Code value not found");
