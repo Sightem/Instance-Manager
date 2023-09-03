@@ -6,7 +6,7 @@
 namespace Utils
 {
     std::vector<unsigned char> ParsePattern(const std::string& pattern);
-    std::string ModifyAppxManifest(std::string inputXML, std::string name);
+    void ModifyAppxManifest(const std::string& filePath, const std::string& name);
     uintptr_t BoyerMooreHorspool(const unsigned char* signature, size_t signatureSize, const unsigned char* data, size_t dataSize);
     void DownloadAndSave(const std::string& url, const std::string& localFileName);
     void DecompressZip(const std::string& zipFile, const std::string& destination);

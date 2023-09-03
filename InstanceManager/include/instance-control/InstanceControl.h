@@ -7,6 +7,7 @@
 #include "group/Group.h"
 #include "roblox/Roblox.h"
 #include "native/Native.h"
+#include "utils/Utils.h"
 
 class InstanceControl
 {
@@ -19,7 +20,7 @@ public:
 	bool TerminateInstance(const std::string& username);
 	bool IsInstanceRunning(const std::string& username);
 
-	ImU32 IsGrouped(const std::string& username);
+	bool IsGrouped(const std::string& username);
 
 	std::vector<std::string> GetInstanceNames();
 
@@ -43,43 +44,25 @@ public:
         std::string method;
         int launchdelay;
         int relaunchinterval;
+        int injectdelay;
         ImU32 color;
     };
 
     void CreateGroup(const GroupCreationInfo& info);
 
-	ImU32 GetGroupColor(const std::string& groupname);
-
+    ImU32 GetColor(const std::string& username) { return std::get<ImU32>(this->m_Instances[username]); };
 
 private:
 
-	InstanceControl()
-	{
-		m_InstanceThread = new std::thread([this]() {
-			while (true)
-			{
-				for (auto& instance : m_LaunchedInstances)
-				{
-					if (!Native::IsProcessRunning(instance.second->GetPID(), "Windows10Universal.exe"))
-					{
-						TerminateInstance(instance.first);
-					}
-				}
-
-				std::this_thread::sleep_for(std::chrono::milliseconds(300));
-			}
-		});
-
-	}
+	InstanceControl() = default;
 
 	friend InstanceControl& GetPrivateInstance();
 
-	std::unordered_map<std::string, Roblox::Instance> instances = Roblox::ProcessRobloxPackages();
+	std::unordered_map<std::string, std::tuple<Roblox::Instance, ImU32>> m_Instances = Roblox::ProcessRobloxPackages();
 	std::unordered_map<std::string, std::shared_ptr<Manager>> m_LaunchedInstances;
 	std::unordered_map<std::string, std::shared_ptr<Group>> m_Groups;
 
-
- 	std::thread* m_InstanceThread = nullptr;
+    void AnimateNewInstances(const std::vector<std::string> &newInstances);
 };
 
 extern InstanceControl& g_InstanceControl;

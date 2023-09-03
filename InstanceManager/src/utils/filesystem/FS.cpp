@@ -53,8 +53,7 @@ namespace FS
     bool RemovePath(const std::filesystem::path& path_to_delete)
     {
         std::error_code ec;
-
-        // Check if the path exists
+        
         if (std::filesystem::exists(path_to_delete, ec))
         {
             try

@@ -10,15 +10,15 @@
 class Group
 {
 public:
-	Group(std::unordered_map<std::string, std::shared_ptr<Manager>>&& managers, int restarttime, int launchdelay, std::string dllpath, std::string mode, std::string method, ImU32 color) :
-		m_Managers(std::move(managers)), m_IsActive(true), m_RestartTime(restarttime), m_LaunchDelay(launchdelay), m_DllPath(std::move(dllpath)), m_Mode(std::move(mode)), m_Method(std::move(method)), m_Color(color) {}
+	Group(std::unordered_map<std::string, std::shared_ptr<Manager>>&& managers, int restarttime, int launchdelay, int injectdelay, std::string dllpath, std::string mode, std::string method) :
+		m_Managers(std::move(managers)), m_IsActive(true), m_RestartTime(restarttime), m_LaunchDelay(launchdelay), m_InjectDelay(injectdelay), m_DllPath(std::move(dllpath)), m_Mode(std::move(mode)), m_Method(std::move(method)), m_Thread(nullptr) {}
 
 	~Group()
 	{
 		Stop();
 	}
 
-	std::optional<ImU32> GetColorForManagedAccount(const std::string& username) const;
+	bool IsManaged(const std::string& username) const;
 
 	void Start();
 
@@ -26,9 +26,10 @@ public:
 
 	void Stop();
 
-	ImU32 GetColor() const;
-
 	void RemoveAccount(const std::string& username);
+
+    std::vector<std::string> GetAccounts() const;
+
 private:
 	std::unordered_map<std::string, std::shared_ptr<Manager>> m_Managers;
 
@@ -37,10 +38,9 @@ private:
 	std::atomic_bool m_IsActive;
 	std::atomic_int m_RestartTime;
 	std::atomic_int m_LaunchDelay;
+    std::atomic_int m_InjectDelay;
 
 	std::string m_DllPath;
     std::string m_Mode;
     std::string m_Method;
-
-	ImU32 m_Color;
 };

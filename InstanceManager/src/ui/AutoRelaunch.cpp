@@ -10,13 +10,12 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 	}
 
 	{
-		static int lastSelectedIndex = -1;
 		if (m_InstanceSelection.size() != m_InstanceNames.size())
 		{
 			m_InstanceSelection.resize(m_InstanceNames.size());
 		}
 
-		if (ImGui::BeginListBox("##listbox instances", ImVec2(ImGui::GetContentRegionAvail().x * 0.30f, ImGui::GetContentRegionAvail().y * 0.5f)))
+		if (ImGui::BeginListBox("##listbox m_Instances", ImVec2(ImGui::GetContentRegionAvail().x * 0.30f, ImGui::GetContentRegionAvail().y * 0.5f)))
 		{
 			if (!ImGui::IsAnyItemActive() && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A)))
 			{
@@ -28,61 +27,21 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 
 			for (int n = 0; n < m_InstanceNames.size(); ++n)
 			{
+                const auto color = g_InstanceControl.GetColor(m_InstanceNames[n]);
+                ImGui::PushStyleColor(ImGuiCol_Text, color);
+                ImGui::Bullet();
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+
 				const bool is_selected = m_InstanceSelection[n];
-
-				if (g_InstanceControl.IsInstanceRunning(m_InstanceNames[n]))
-				{
-					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(40, 170, 40, 255));
-					ImGui::Bullet();
-					ImGui::PopStyleColor();
-					ImGui::SameLine();
-
-					// Check if the bullet is hovered
-					if (ImGui::IsItemHovered())
-					{
-						ImGui::BeginTooltip();
-						ImGui::Text("Instance has been launched.");
-						ImGui::EndTooltip();
-					}
-				}
-				else // fucking cursed
-				{
-					auto groupColor = g_InstanceControl.IsGrouped(m_InstanceNames[n]);
-
-					ImGui::PushStyleColor(ImGuiCol_Text, groupColor);
-					ImGui::Bullet();
-					ImGui::PopStyleColor();
-					ImGui::SameLine();
-
-					//check if color is 77,77,77,255 (grey)
-					if (groupColor == IM_COL32(77, 77, 77, 255))
-					{
-						if (ImGui::BeginItemTooltip())
-						{
-							ImGui::Text("Instance has not been launched.");
-
-							ImGui::EndTooltip();
-						}
-					}
-					else
-					{
-						// Check if the bullet is hovered
-						if (ImGui::BeginItemTooltip())
-						{
-							ImGui::Text("Instance has been launched.");
-
-							ImGui::EndTooltip();
-						}
-					}
-				}
-
-				if (ImGui::Selectable(m_InstanceNames[n].c_str(), is_selected))
+                static int lastSelectedIndex = -1;
+                if (ImGui::Selectable(m_InstanceNames[n].c_str(), is_selected))
 				{
 					if (ImGui::GetIO().KeyShift && lastSelectedIndex != -1)
 					{
 						// Handle range selection
-						int start = std::min(lastSelectedIndex, n);
-						int end = std::max(lastSelectedIndex, n);
+						const int start = std::min(lastSelectedIndex, n);
+						const int end = std::max(lastSelectedIndex, n);
 						for (int i = start; i <= end; ++i)
 						{
 							m_InstanceSelection[i] = true;
@@ -105,7 +64,7 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 				// This fixes an annoying bug where right clicking an instance right after launching it would make the program crash
 				if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
 				{
-					// If no instances or only one instance is selected, or the right clicked instance isn't part of the selection
+					// If no m_Instances or only one instance is selected, or the right clicked instance isn't part of the selection
 					if (std::count(m_InstanceSelection.begin(), m_InstanceSelection.end(), true) <= 1 || !m_InstanceSelection[n])
 					{
 						std::fill(m_InstanceSelection.begin(), m_InstanceSelection.end(), false); // Clear other selections
@@ -127,7 +86,7 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 		ImGui::InputTextWithHint("##group name", "Group name", &groupName);
 		ImGui::PopItemWidth();
 
-		ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.25f);
+		ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.20f);
 		static std::string PlaceID;
 		ImGui::InputTextWithHint("##placeidar", "Place ID", &PlaceID);
 
@@ -143,19 +102,31 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 		static std::string relaunchInterval;
 		ImGui::InputTextWithHint("##relaunchintervalar", "Relaunch Interval (Minutes)", &relaunchInterval);
 
-		static bool isLoaded = false;
+        ImGui::SameLine();
+        static std::string injectDelay;
+        ImGui::InputTextWithHint("##injectdelayar", "Inject Delay (Seconds)", &injectDelay);
+
+        static bool isLoaded = false;
         if (!isLoaded)
         {
-            auto loadConfigValue = [&](const std::string& key, std::string& value) {
+            auto loadConfigValue = [](const std::string& key) -> std::optional<std::string> {
                 if (auto optValue = Config::getInstance().GetStringForKey(key); optValue) {
-                    value = *optValue;
+                    return *optValue;
+                }
+                return std::nullopt;
+            };
+
+            auto loadValue = [loadConfigValue](auto& variable, const std::string& key) {
+                if (const auto value = loadConfigValue(key)) {
+                    variable = *value;
                 }
             };
 
-            loadConfigValue("lastPlaceID", PlaceID);
-            loadConfigValue("lastVip", vipCode);
-            loadConfigValue("lastDelay", launchDelay);
-            loadConfigValue("lastInterval", relaunchInterval);
+            loadValue(PlaceID, "lastPlaceID");
+            loadValue(vipCode, "lastVip");
+            loadValue(launchDelay, "lastDelay");
+            loadValue(relaunchInterval, "lastInterval");
+            loadValue(injectDelay, "lastInjectDelay");
 
             isLoaded = true;
         }
@@ -165,21 +136,21 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 		static ImVec4 color = ImVec4(114.0f / 255.0f, 144.0f / 255.0f, 154.0f / 255.0f, 200.0f / 255.0f);
 		if (ImGui::TreeNode("Group Color"))
 		{
-			float availableWidth = ImGui::GetContentRegionAvail().x;
-			float widgetWidth = (availableWidth - ImGui::GetStyle().ItemSpacing.y) * 0.40f;
-			float totalWidgetWidth = 2 * widgetWidth + ImGui::GetStyle().ItemSpacing.y;
+			const float availableWidth = ImGui::GetContentRegionAvail().x;
+            const float widgetWidth = (availableWidth - ImGui::GetStyle().ItemSpacing.y) * 0.40f;
+            const float totalWidgetWidth = 2 * widgetWidth + ImGui::GetStyle().ItemSpacing.y;
 
-			float spacing = (availableWidth - totalWidgetWidth) / 2.0f;
+            const float spacing = (availableWidth - totalWidgetWidth) / 2.0f;
 
 			ImGui::Dummy(ImVec2(spacing, 0));
 			ImGui::SameLine();
 
 			ImGui::SetNextItemWidth(widgetWidth);
-			ImGui::ColorPicker3("##MyColor##5", (float*)&color, ImGuiColorEditFlags_PickerHueBar | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha);
+			ImGui::ColorPicker3("##MyColor##5", reinterpret_cast<float*>(&color), ImGuiColorEditFlags_PickerHueBar | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha);
 			ImGui::SameLine();
 
 			ImGui::SetNextItemWidth(widgetWidth);
-			ImGui::ColorPicker3("##MyColor##6", (float*)&color, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha);
+			ImGui::ColorPicker3("##MyColor##6", reinterpret_cast<float*>(&color), ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha);
 
 			ImGui::TreePop();
 		}
@@ -187,19 +158,23 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 		if (ImGui::TreeNode("Auto Inject"))
 		{
 			ImVec2 buttonSize = ImGui::CalcTextSize("Open DLL File");
-			float padding = 20.0f; // Some padding between the InputText and the button
-			float inputTextWidth = ImGui::GetContentRegionAvail().x - buttonSize.x - padding;
+			constexpr float padding = 20.0f; // Some padding between the InputText and the button
+			const float inputTextWidth = ImGui::GetContentRegionAvail().x - buttonSize.x - padding;
 			ImGui::PushItemWidth(inputTextWidth);
 
-            std::vector<std::string> injectionModes = { "LoadLibrary", "ManualMap" };
+            const std::array<std::string, 2> injectionModes = { "LoadLibrary", "ManualMap" };
             static int selectedInjectionMode = 0;
-            ui::RenderCombo("##Injection Mode", injectionModes, selectedInjectionMode);
-            this->m_InjectionMode = injectionModes[selectedInjectionMode];
+            if (ui::RenderCombo("##Injection Mode", injectionModes, selectedInjectionMode))
+            {
+                this->m_InjectionMode = injectionModes[selectedInjectionMode];
+            }
 
-            std::vector<std::string> injectionMethods = { "NtCreateThreadEx", "HijackThread", "SetWindowsHookEx", "QueueUserAPC", "SetWindowLong" };
+            const std::array<std::string, 5> injectionMethods = { "NtCreateThreadEx", "HijackThread", "SetWindowsHookEx", "QueueUserAPC", "SetWindowLong" };
             static int selectedInjectionMethod = 0;
-            ui::RenderCombo("##Injection Method", injectionMethods, selectedInjectionMethod);
-            this->m_InjectionMethod = injectionMethods[selectedInjectionMethod];
+            if (ui::RenderCombo("##Injection Method", injectionMethods, selectedInjectionMethod))
+            {
+                this->m_InjectionMethod = injectionMethods[selectedInjectionMethod];
+            }
 
 
 			// Set the width for the InputText
@@ -223,9 +198,7 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 				ofn.lpstrInitialDir = NULL;
 				ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
-				if (GetOpenFileName(&ofn) == TRUE) {
-				}
-
+				GetOpenFileName(&ofn);
 			}
 
 			ImGui::TreePop();
@@ -271,6 +244,7 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
                 groupInfo.launchdelay = launchDelay.empty() ? 0 : std::stoi(launchDelay);
                 groupInfo.relaunchinterval = std::stoi(relaunchInterval);
                 groupInfo.color = ui::ImVec4ToUint32(color);
+                groupInfo.injectdelay = injectDelay.empty() ? 0 : std::stoi(injectDelay);
 
                 g_InstanceControl.CreateGroup(groupInfo);
 			}
@@ -279,6 +253,7 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 			Config::getInstance().UpdateConfig<std::string>("lastVip", vipCode);
 			Config::getInstance().UpdateConfig<std::string>("lastDelay", launchDelay);
 			Config::getInstance().UpdateConfig<std::string>("lastInterval", relaunchInterval);
+            Config::getInstance().UpdateConfig<std::string>("lastInjectDelay", injectDelay);
 		}
 
 		if (groupName.empty() || PlaceID.empty() || relaunchInterval.empty() || std::count(m_InstanceSelection.begin(), m_InstanceSelection.end(), true) == 0)
@@ -302,12 +277,6 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 			{
 				const bool is_selected = m_GroupSelection[n];
 
-				auto groupColor = g_InstanceControl.GetGroupColor(m_Groups[n]);
-				ImGui::PushStyleColor(ImGuiCol_Text, groupColor);
-				ImGui::Bullet();
-				ImGui::PopStyleColor();
-				ImGui::SameLine();
-
 				if (ImGui::Selectable(m_Groups[n].c_str(), is_selected))
 				{
 					std::fill(m_GroupSelection.begin(), m_GroupSelection.end(), false);
@@ -322,7 +291,7 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 
 		ImGui::BeginGroup();
 
-		bool groupPresent = std::none_of(m_GroupSelection.begin(), m_GroupSelection.end(), [](bool b) { return b; });
+		const bool groupPresent = std::none_of(m_GroupSelection.begin(), m_GroupSelection.end(), [](bool b) { return b; });
 		ImGui::BeginDisabled(groupPresent);
 
 		ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(82, 21, 21, 255));

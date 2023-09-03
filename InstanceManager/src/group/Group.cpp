@@ -1,6 +1,5 @@
 #include "group/Group.h"
 #include "utils/Utils.h"
-#include <chrono>
 #include <algorithm>
 
 using Minutes = std::chrono::minutes;
@@ -8,22 +7,13 @@ using Seconds = std::chrono::seconds;
 
 constexpr int ROBLOXWAITTIME = 7;
 
-std::optional<ImU32> Group::GetColorForManagedAccount(const std::string& username) const
-{
-	if (m_Managers.find(username) != m_Managers.end())
-	{
-		return m_Color;
-	}
-	return std::nullopt;
-}
-
 void Group::StartManager(const std::shared_ptr<Manager>& manager)
 {
     manager->start();
 
     if (!m_DllPath.empty())
     {
-        Utils::SleepFor(std::chrono::seconds(2));
+        Utils::SleepFor(std::chrono::seconds(m_InjectDelay.load(std::memory_order_relaxed)));
         manager->Inject(m_DllPath, m_Mode, m_Method);
     }
 
@@ -77,12 +67,21 @@ void Group::Stop()
 	delete m_Thread;
 }
 
-ImU32 Group::GetColor() const
-{
-	return m_Color;
-}
 
 void Group::RemoveAccount(const std::string& username)
 {
 	m_Managers.erase(username);
+}
+
+bool Group::IsManaged(const std::string &username) const {
+    return m_Managers.find(username) != m_Managers.end();
+}
+
+std::vector<std::string> Group::GetAccounts() const {
+    std::vector<std::string> accounts;
+    for (const auto& [username, manager] : m_Managers)
+    {
+        accounts.push_back(username);
+    }
+    return accounts;
 }

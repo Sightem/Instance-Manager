@@ -27,77 +27,99 @@ namespace Roblox
 
     }
 
-    std::unordered_map<std::string, Roblox::Instance> ProcessRobloxPackages() {
-        std::unordered_map<std::string, Roblox::Instance> instancesMap;
+    Roblox::Instance createRobloxInstance(const winrt::Windows::ApplicationModel::Package& package) {
+        Roblox::Instance instance;
 
-        winrt::Windows::Management::Deployment::PackageManager packageManager;
+        instance.PackageID = winrt::to_string(package.Id().FullName().c_str());
+        instance.PackageFullName = winrt::to_string(package.Id().FullName().c_str());
+        instance.PackageFamilyName = winrt::to_string(package.Id().FamilyName().c_str());
+        instance.Version = fmt::format("{}.{}.{}.{}",
+                                       package.Id().Version().Major,
+                                       package.Id().Version().Minor,
+                                       package.Id().Version().Revision,
+                                       package.Id().Version().Build);
 
         try {
-            for (const auto& package : packageManager.FindPackages()) {
-                // Check Publisher ID
-                std::wstring publisherID = package.Id().PublisherId().c_str();
-                if (publisherID == L"55nm5eh3cm0pr") {
-                    Roblox::Instance instance;
+            if (package.InstalledLocation()) {
+                instance.InstallLocation = winrt::to_string(package.InstalledLocation().Path().c_str());
+            } else {
+                instance.InstallLocation = "Not Available";
+            }
+        } catch (const winrt::hresult_error& ex) {
+            instance.InstallLocation = "Not Available";
+            std::wcerr << L"Error while fetching InstalledLocation for package: " <<
+                winrt::to_hstring(package.Id().FullName()).c_str() << L" - " << winrt::to_message().c_str() << std::endl;
 
-                    instance.PackageID = winrt::to_string(package.Id().FullName().c_str());
-                    instance.PackageFullName = winrt::to_string(package.Id().FullName().c_str());
-                    instance.PackageFamilyName = winrt::to_string(package.Id().FamilyName().c_str());
-                    instance.Version = std::to_string(package.Id().Version().Major) + "." +
-                        std::to_string(package.Id().Version().Minor) + "." +
-                        std::to_string(package.Id().Version().Revision) + "." +
-                        std::to_string(package.Id().Version().Build);
-                    if (package.InstalledLocation()) {
-                        instance.InstallLocation = winrt::to_string(package.InstalledLocation().Path().c_str());
+            std::wcerr << L"Error code: " << ex.code() << std::endl;
+        } catch (...) {
+            instance.InstallLocation = "Not Available";
+            std::wcerr << L"Unknown error occurred while fetching InstalledLocation for package: " <<
+                winrt::to_hstring(package.Id().FullName()).c_str() << std::endl;
+        }
+
+        return instance;
+    }
+    void fetchAppListEntryInfo(Roblox::Instance& instance, const winrt::Windows::ApplicationModel::Package& package) {
+        auto asyncOp = package.GetAppListEntriesAsync();
+        if (asyncOp.Status() == winrt::Windows::Foundation::AsyncStatus::Error) {
+            std::wcerr << L"Error before calling get on GetAppListEntriesAsync. Error code: " << asyncOp.ErrorCode() << std::endl;
+        } else if (asyncOp.Status() == winrt::Windows::Foundation::AsyncStatus::Canceled) {
+            std::wcerr << L"Operation GetAppListEntriesAsync was canceled." << std::endl;
+        } else {
+            auto appListEntries = asyncOp.get();
+
+            for (const auto& appListEntry : appListEntries) {
+                std::string fullName = winrt::to_string(package.Id().FullName().c_str());
+                size_t underscorePosition = fullName.find('_');
+                if (underscorePosition != std::string::npos) {
+                    instance.Name = fullName.substr(0, underscorePosition);
+                } else {
+                    instance.Name = fullName;
+                }
+
+                instance.AppID = winrt::to_string(appListEntry.AppUserModelId().c_str());
+                winrt::Windows::ApplicationModel::AppDisplayInfo displayInfo = appListEntry.DisplayInfo();
+                instance.DisplayName = winrt::to_string(displayInfo.DisplayName().c_str());
+            }
+        }
+    }
+
+    std::optional<std::string> extractKeyFromPackage(const winrt::Windows::ApplicationModel::Package& package) {
+        std::string fullName = winrt::to_string(package.Id().Name().c_str());
+        std::regex r(R"(([^.]+)$)");
+        std::smatch match;
+        if (std::regex_search(fullName, match, r) && match.size() > 1) {
+            return match.str(1);
+        }
+        return std::nullopt;
+    }
+
+    std::unordered_map<std::string, std::tuple<Roblox::Instance, ImU32>> ProcessRobloxPackages() {
+        std::unordered_map<std::string, std::tuple<Roblox::Instance, ImU32>> instancesMap;
+        winrt::Windows::Management::Deployment::PackageManager packageManager;
+
+        for (const auto& package : packageManager.FindPackages()) {
+            if (std::wstring publisherID = package.Id().PublisherId().c_str(); publisherID == L"55nm5eh3cm0pr") {
+                try {
+                    Roblox::Instance instance = createRobloxInstance(package);
+                    fetchAppListEntryInfo(instance, package);
+
+                    ImU32 color = instance.InstallLocation == "Not Available" ? IM_COL32(255, 0, 0, 255) : IM_COL32(77, 77, 77, 255);
+
+                    if (auto keyOpt = extractKeyFromPackage(package); keyOpt) {
+                        instancesMap[*keyOpt] = { instance, color };
                     }
-                    else {
-                        instance.InstallLocation = "Not Available";
-                    }
-
-                    // Getting AppListEntry information
-                    auto asyncOp = package.GetAppListEntriesAsync();
-                    if (asyncOp.Status() == winrt::Windows::Foundation::AsyncStatus::Error) {
-                        std::wcerr << L"Error before calling get on GetAppListEntriesAsync. Error code: " << asyncOp.ErrorCode() << std::endl;
-                    } else if (asyncOp.Status() == winrt::Windows::Foundation::AsyncStatus::Canceled) {
-                        std::wcerr << L"Operation GetAppListEntriesAsync was canceled." << std::endl;
-                    } else {
-                        auto appListEntries = asyncOp.get();
-
-                        for (const auto& appListEntry : appListEntries) {
-                            std::string fullName = winrt::to_string(package.Id().FullName().c_str());
-                            size_t underscorePosition = fullName.find('_');
-                            if (underscorePosition != std::string::npos) {
-                                instance.Name = fullName.substr(0, underscorePosition);
-                            }
-                            else {
-                                instance.Name = fullName;
-                            }
-
-                            instance.AppID = winrt::to_string(appListEntry.AppUserModelId().c_str());
-                            winrt::Windows::ApplicationModel::AppDisplayInfo displayInfo = appListEntry.DisplayInfo();
-                            instance.DisplayName = winrt::to_string(displayInfo.DisplayName().c_str());
-                        }
-
-                        // Extract the desired key using regex
-                        std::string fullName = winrt::to_string(package.Id().Name().c_str());
-                        std::regex r(R"(([^.]+)$)");  // Match any substring that doesn't contain a dot, at the end of the string
-                        std::smatch match;
-                        if (std::regex_search(fullName, match, r) && match.size() > 1) {
-                            std::string key = match.str(1);
-                            instancesMap[key] = instance;
-                        }
-
-                    }
+                } catch (const winrt::hresult_error& ex) {
+                    std::wcerr << L"WinRT error for package: " << winrt::to_hstring(package.Id().FullName()).c_str() << L" - " << winrt::to_message().c_str() << std::endl;
+                    std::wcerr << L"Error code: " << ex.code() << std::endl;
                 }
             }
         }
-        catch (const winrt::hresult_error& ex) {
-            std::wcerr << L"WinRT error: " << ex.message().c_str() << std::endl;
-            std::wcerr << L"Error code: " << ex.code() << std::endl;
-        }
 
-        if (instancesMap.find("ROBLOX") != instancesMap.end()) {
-            instancesMap.erase("ROBLOX");
-        }
+        std::erase_if(instancesMap, [](const auto& pair) {
+            const auto& [key, _] = pair;
+            return key == "ROBLOX";
+        });
 
         return instancesMap;
     }
@@ -152,7 +174,7 @@ namespace Roblox
         return ModifyXMLError::Success;
     }
 
-    std::string EnterCode(std::string code, std::string cookie)
+    std::string EnterCode(const std::string& code, std::string cookie)
     {
         nlohmann::json j;
         j["code"] = code;
@@ -167,7 +189,7 @@ namespace Roblox
         return r.text;
     }
 
-    std::string ValidateCode(std::string code, std::string cookie)
+    std::string ValidateCode(const std::string& code, std::string cookie)
     {
         nlohmann::json j;
         j["code"] = code;

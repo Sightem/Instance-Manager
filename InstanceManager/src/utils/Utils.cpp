@@ -107,10 +107,14 @@ namespace Utils
         std::filesystem::copy_file(source, destination);
     }
 
-    std::string ModifyAppxManifest(std::string inputXML, std::string name)
-    {
+    void ModifyAppxManifest(const std::string& filePath, const std::string& name) {
         tinyxml2::XMLDocument doc;
-        doc.Parse(inputXML.c_str());
+        tinyxml2::XMLError loadResult = doc.LoadFile(filePath.c_str());
+
+        if (loadResult != tinyxml2::XML_SUCCESS) {
+            CoreLogger::Log(LogLevel::ERR, "Failed to load AppxManifest.xml");
+            return;
+        }
 
         // <Identity> element's Name attribute
         tinyxml2::XMLElement* identityElement = doc.FirstChildElement("Package")->FirstChildElement("Identity");
@@ -152,20 +156,12 @@ namespace Utils
             }
         }
 
-        tinyxml2::XMLPrinter printer;
-        doc.Print(&printer);
-        return printer.CStr();
+        doc.SaveFile(filePath.c_str());
     }
 
-    struct FileContent {
-        std::string data;
-        int64_t read_len = 0;
-    };
-
-    bool write_data(const std::string& data, intptr_t userdata) {
-        auto* content = reinterpret_cast<FileContent*>(userdata);
-        content->data += data;
-        content->read_len += data.size();
+    bool write_data_to_file(const std::string& data, intptr_t userdata) {
+        auto* outfile = reinterpret_cast<std::ofstream*>(userdata);
+        outfile->write(data.c_str(), data.size());
         return true;
     }
 
@@ -173,36 +169,33 @@ namespace Utils
         cpr::Session session;
         session.SetUrl(cpr::Url{url});
 
-        FileContent file_content;
+        std::ofstream outfile(localPath, std::ofstream::out | std::ofstream::trunc);
 
-        cpr::Response result = session.Download(cpr::WriteCallback{write_data, reinterpret_cast<intptr_t>(&file_content)});
+        cpr::Response result = session.Download(cpr::WriteCallback{write_data_to_file, reinterpret_cast<intptr_t>(&outfile)});
 
-        std::string downloaded_str = file_content.data;
+        outfile.flush();
+        outfile.close();
 
         if (!name.empty()) {
-            downloaded_str = Utils::ModifyAppxManifest(downloaded_str, name);
+            Utils::ModifyAppxManifest(localPath, name); // Modify the file in-place
         }
-
-        std::ofstream outfile(localPath, std::ofstream::out | std::ofstream::trunc);
-        outfile.write(downloaded_str.c_str(), downloaded_str.size());
-        outfile.flush();
     }
 
     void UpdatePackage(const std::string& baseFolder, const std::string& instanceName) {
         // For Windows10Universal.zip
-        std::thread win10t([&, baseFolder]() {
+        std::thread win10t([baseFolder]() {
             DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Windows10Universal.zip", "Windows10Universal.zip");
             DecompressZip("Windows10Universal.zip", baseFolder + "\\Windows10Universal.exe");
             });
 
         // For CrashHandler.exe
-        std::thread crasht([&, baseFolder]() {
+        std::thread crasht([baseFolder]() {
             DownloadAndSave("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/Assets/CrashHandler.exe", "CrashHandler.exe");
             CopyFileToDestination("CrashHandler.exe", baseFolder + "\\Assets\\CrashHandler.exe");
             });
 
         // For AppxManifest.xml
-        std::thread appxt([&, baseFolder, instanceName]() {
+        std::thread appxt([baseFolder, instanceName]() {
             WriteAppxManifest("https://raw.githubusercontent.com/Sightem/Instance-Manager/master/Template/AppxManifest.xml", baseFolder + "\\AppxManifest.xml");
             });
 
@@ -292,6 +285,4 @@ namespace Utils
             return { -1, -1 };
         }
     }
-
-
 }

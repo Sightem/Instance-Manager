@@ -143,30 +143,4 @@ namespace ui
         auto a = static_cast<uint8_t>(color.w * 255.0f);
         return (a << 24) | (b << 16) | (g << 8) | r;
     }
-
-    bool RenderCombo(const char* label, std::vector<std::string>& items, int& currentItemIdx) {
-        if (items.empty()) return false;
-
-        const char* combo_preview_value = items[currentItemIdx].c_str();
-
-        bool itemChanged = false;
-
-        if (ImGui::BeginCombo(label, combo_preview_value, NULL)) {
-            for (int n = 0; n < items.size(); n++) {
-                const bool is_selected = (currentItemIdx == n);
-                if (ImGui::Selectable(items[n].c_str(), is_selected)) {
-                    currentItemIdx = n;
-                    itemChanged = true;
-                }
-
-                if (is_selected) {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndCombo();
-        }
-
-        return itemChanged;
-    }
-
 }

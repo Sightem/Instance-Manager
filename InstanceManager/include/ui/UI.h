@@ -1,7 +1,9 @@
 #pragma once
 #include "imgui.h"
 #include <string>
+#include <utility>
 #include <vector>
+#include <functional>
 
 namespace ui
 {
@@ -19,5 +21,31 @@ namespace ui
     bool BeginSizedListBox(const char* label, float width_ratio, float height_ratio);
 
     unsigned int ImVec4ToUint32(const ImVec4& color);
-    bool RenderCombo(const char* label, std::vector<std::string>& items, int& currentItemIdx);
+
+    template <std::size_t N>
+    bool RenderCombo(const char* label, const std::array<std::string, N>& items, int& currentItemIdx) {
+        if (items.size() == 0) return false;
+
+        const char* combo_preview_value = items[currentItemIdx].c_str();
+
+        bool itemChanged = false;
+
+        if (ImGui::BeginCombo(label, combo_preview_value, NULL)) {
+            for (int n = 0; n < items.size(); n++) {
+                const bool is_selected = (currentItemIdx == n);
+                if (ImGui::Selectable(items[n].c_str(), is_selected)) {
+                    currentItemIdx = n;
+                    itemChanged = true;
+                }
+
+                if (is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        return itemChanged;
+    }
+
 }

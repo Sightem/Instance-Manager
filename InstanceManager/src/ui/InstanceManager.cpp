@@ -43,8 +43,8 @@ void InstanceManager::StartUp()
 		);
 	});
 
-	// Create the instances directory if it doesn't exist
-	std::filesystem::create_directory("instances");
+	// Create the m_Instances directory if it doesn't exist
+	std::filesystem::create_directory("m_Instances");
 
 	//if config.json doesn't exist, create it
 	if (!std::filesystem::exists("config.json"))
@@ -55,6 +55,7 @@ void InstanceManager::StartUp()
 		j["lastVip"] = "";
 		j["lastDelay"] = "";
 		j["lastInterval"] = "";
+        j["lastInjectDelay"] = "";
 
 		//save to file
 		ofs << j.dump(4);
@@ -115,55 +116,14 @@ void InstanceManager::Update()
 
 			if (filter.PassFilter(instanceName.c_str()))
 			{
-				const bool is_selected = g_Selection[n];
+                auto color = g_InstanceControl.GetColor(g_InstanceNames[n]);
+                ImGui::PushStyleColor(ImGuiCol_Text, color);
+                ImGui::Bullet();
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
 
-				if (g_InstanceControl.IsInstanceRunning(g_InstanceNames[n]))
-				{
-					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(40, 170, 40, 255));
-					ImGui::Bullet();
-					ImGui::PopStyleColor();
-					ImGui::SameLine();
-
-					// Check if the bullet is hovered
-					if (ImGui::IsItemHovered())
-					{
-						ImGui::BeginTooltip();
-						ImGui::Text("Instance has been launched.");
-						ImGui::EndTooltip();
-					}
-				}
-				else // fucking cursed
-				{
-					auto groupColor = g_InstanceControl.IsGrouped(g_InstanceNames[n]);
-
-					ImGui::PushStyleColor(ImGuiCol_Text, groupColor);
-					ImGui::Bullet();
-					ImGui::PopStyleColor();
-					ImGui::SameLine();
-
-					//check if color is 77,77,77,255 (grey)
-					if (groupColor == IM_COL32(77, 77, 77, 255))
-					{
-						if (ImGui::BeginItemTooltip())
-						{
-							ImGui::Text("Instance has not been launched.");
-
-							ImGui::EndTooltip();
-						}
-					}
-					else
-					{
-						// Check if the bullet is hovered
-						if (ImGui::BeginItemTooltip())
-						{
-							ImGui::Text("Instance is being Auto Relaunched");
-
-							ImGui::EndTooltip();
-						}
-					}
-				}
-
-				if (ImGui::Selectable(g_InstanceNames[n].c_str(), is_selected))
+                const bool is_selected = g_Selection[n];
+                if (ImGui::Selectable(g_InstanceNames[n].c_str(), is_selected))
 				{
 					if (ImGui::GetIO().KeyShift && lastSelectedIndex != -1)
 					{
@@ -192,7 +152,7 @@ void InstanceManager::Update()
 				// This fixes an annoying bug where right clicking an instance right after launching it would make the program crash
 				if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
 				{
-					// If no instances or only one instance is selected, or the right clicked instance isn't part of the selection
+					// If no m_Instances or only one instance is selected, or the right clicked instance isn't part of the selection
 					if (std::count(g_Selection.begin(), g_Selection.end(), true) <= 1 || !g_Selection[n])
 					{
 						std::fill(g_Selection.begin(), g_Selection.end(), false); // Clear other selections
@@ -468,27 +428,27 @@ void InstanceManager::RenderTerminate()
 }
 
 void InstanceManager::SubmitDeleteTask(int idx) {
-    this->m_ThreadManager.SubmitTask("deleteInstance" + std::to_string(idx), [idx]() {
+    const std::string instanceName = g_InstanceNames[idx];
+    this->m_ThreadManager.SubmitTask("deleteInstance" + std::to_string(idx), [idx, instanceName]() {
         try
         {
-            g_InstanceControl.DeleteInstance(g_InstanceNames[idx]);
+            g_InstanceControl.DeleteInstance(instanceName);
             g_InstanceNames.erase(g_InstanceNames.begin() + idx);
         }
         catch (const std::exception& e)
         {
-            CoreLogger::Log(LogLevel::WARNING, "Failed to delete instance {}: {}", g_InstanceNames[idx], e.what());
+            CoreLogger::Log(LogLevel::WARNING, "Failed to delete {}: {}", instanceName, e.what());
         }
-    }, [&]() {
-        CoreLogger::Log(LogLevel::INFO, "Instance Deleted");
+    }, [instanceName]() {
+        CoreLogger::Log(LogLevel::INFO, "{} has been deleted", instanceName);
     });
 }
 
 
 void InstanceManager::DeleteInstances(const std::set<int>& indices)
 {
-    CoreLogger::Log(LogLevel::INFO, "Deleting instances...");
+    CoreLogger::Log(LogLevel::INFO, "Deleting {} instances...", indices.size());
 
-    // It's safer to erase items from a vector in reverse order
     auto sortedIndices = indices;
     for (int idx : std::ranges::reverse_view(sortedIndices))
     {
@@ -528,7 +488,7 @@ void InstanceManager::RenderRemoveInstances()
 			ImGui::Text("This will delete all the files related to the selected instance and unregister it.\nThis operation cannot be undone!\n\n");
 		}
 		else {
-			ImGui::Text("This will delete all the files related to the %d selected instances and unregister them.\nThis operation cannot be undone!\n\n", num_selected);
+			ImGui::Text("This will delete all the files related to the %d selected m_Instances and unregister them.\nThis operation cannot be undone!\n\n", num_selected);
 		}
 		ImGui::Separator();
 

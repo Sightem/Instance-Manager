@@ -16,7 +16,7 @@ class AutoRelaunch
 {
 public:
     AutoRelaunch(std::vector<std::string>& instances)
-		: m_InstanceNames(instances)
+		: m_InstanceNames(instances), m_InjectionMode("LoadLibrary"), m_InjectionMethod("NtCreateThreadEx")
 	{}
 
 	void Draw(const char* title, bool* p_open = NULL);

@@ -2,7 +2,6 @@
 #include <fmt/format.h>
 
 #include "utils/filesystem/FS.h"
-#include "utils/utils.h"
 
 #include <fstream>
 
@@ -16,30 +15,28 @@ InstanceControl& g_InstanceControl = GetPrivateInstance();
 
 bool InstanceControl::LaunchInstance(const std::string& username, const std::string& placeid, const std::string& linkcode)
 {
-    auto instance = instances[username];
-	auto manager = std::make_shared<Manager>(instance, username, placeid, linkcode);
-	if (!manager->start())
-	{
-		return false;
-	}
+    auto it = m_Instances.find(username);
+    Roblox::Instance& instance = std::get<0>(it->second);
+    auto manager = std::make_shared<Manager>(instance, username, placeid, linkcode);
+    if (!manager->start())
+    {
+        return false;
+    }
 
-	m_LaunchedInstances[username] = manager;
-	return true;
+    m_LaunchedInstances[username] = manager;
+    std::get<1>(it->second) = IM_COL32(40, 170, 40, 255);
+
+    return true;
 }
 
 bool InstanceControl::TerminateInstance(const std::string& username)
 {
+    auto it = m_Instances.find(username);
     if (m_LaunchedInstances.find(username) == m_LaunchedInstances.end())
     {
-        if (IsGrouped(username))
+        for (auto &group: m_Groups)
         {
-            for (auto& group : m_Groups)
-            {
-                if (group.second->GetColorForManagedAccount(username).has_value())
-                {
-                    group.second->RemoveAccount(username);
-                }
-            }
+            group.second->RemoveAccount(username);
         }
     }
     else
@@ -47,6 +44,8 @@ bool InstanceControl::TerminateInstance(const std::string& username)
         m_LaunchedInstances[username]->terminate();
         m_LaunchedInstances.erase(username);
     }
+
+    std::get<1>(it->second) = IM_COL32(77, 77, 77, 255);
 
     return true;
 }
@@ -63,32 +62,42 @@ bool InstanceControl::IsInstanceRunning(const std::string& username)
 
 void InstanceControl::TerminateGroup(const std::string& groupname)
 {
-	if (m_Groups.find(groupname) == m_Groups.end())
-	{
-		return;
-	}
+    auto it = m_Groups.find(groupname);
+    if (it == m_Groups.end())
+    {
+        return;
+    }
 
-	m_Groups.erase(groupname);
+    std::vector<std::string> accs = it->second->GetAccounts();
+
+    for (const auto& username : accs)
+    {
+        auto instanceIt = m_Instances.find(username);
+        if (instanceIt != m_Instances.end())
+        {
+            std::get<1>(instanceIt->second) = IM_COL32(77, 77, 77, 255);
+        }
+    }
+
+    m_Groups.erase(it);
 }
 
-ImU32 InstanceControl::IsGrouped(const std::string& username)
-{
-	for (auto& group : m_Groups)
-	{
-		auto color = group.second->GetColorForManagedAccount(username);
-		if (color.has_value())
-		{
-			return color.value();
-		}
-	}
 
-	return IM_COL32(77, 77, 77, 255);
+bool InstanceControl::IsGrouped(const std::string& username)
+{
+    for (auto& group : m_Groups)
+    {
+        if (group.second->IsManaged(username))
+        {
+            return true;
+        }
+    }
 }
 
 std::vector<std::string> InstanceControl::GetInstanceNames()
 {
     std::vector<std::string> names;
-    for (auto& instance : instances)
+    for (auto& instance : m_Instances)
     {
 		names.emplace_back(instance.first);
 	}
@@ -98,68 +107,96 @@ std::vector<std::string> InstanceControl::GetInstanceNames()
 
 bool InstanceControl::CreateInstance(const std::string& username)
 {
-	std::ifstream file("Template\\AppxManifest.xml", std::ios::in | std::ios::binary | std::ios::ate);
-	std::string inputXML;
-	inputXML.resize(file.tellg());
-	file.seekg(0, std::ios::beg);
-	file.read(&inputXML[0], inputXML.size());
-	file.close();
+    std::string path = fmt::format("m_Instances\\{}", username);
+    std::filesystem::create_directory(path);
+    FS::CopyDirectory("Template", path);
 
-	std::string buf = Utils::ModifyAppxManifest(inputXML, username);
+    std::string manifestPath = path + "\\AppxManifest.xml";
+    Utils::ModifyAppxManifest(manifestPath, username);
 
-	std::string path = fmt::format("instances\\{}", username);
+    std::string abs_path = std::filesystem::absolute(manifestPath).string();
+    Native::InstallUWPApp(winrt::to_hstring(abs_path));
 
-	std::filesystem::create_directory(path);
+    std::set<std::string> oldInstances;
+    for (const auto& pair : m_Instances)
+        oldInstances.insert(pair.first);
 
-	FS::CopyDirectory("Template", path);
+    m_Instances = Roblox::ProcessRobloxPackages();
 
-	std::ofstream ofs(path + "\\AppxManifest.xml", std::ofstream::out | std::ofstream::trunc);
-	ofs << buf;
-	ofs.flush();
-	ofs.close();
-	std::string abs_path = std::filesystem::absolute(path + "\\AppxManifest.xml").string();
+    std::vector<std::string> newInstances;
+    for (const auto& pair : m_Instances)
+    {
+        if (oldInstances.find(pair.first) == oldInstances.end())
+            newInstances.push_back(pair.first);
+    }
 
-	Native::InstallUWPApp(winrt::to_hstring(abs_path));
+    AnimateNewInstances(newInstances);
 
-	instances = Roblox::ProcessRobloxPackages();
+    return true;
+}
 
-	return true;
+void InstanceControl::AnimateNewInstances(const std::vector<std::string>& newInstances)
+{
+    std::thread([this, newInstances]() {
+        auto startTime = std::chrono::high_resolution_clock::now();
+        double duration = 2.0;
+
+        std::vector<std::reference_wrapper<ImU32>> instanceColors;
+        for (const auto& instanceName : newInstances)
+        {
+            auto it = m_Instances.find(instanceName);
+            if (it != m_Instances.end())
+            {
+                instanceColors.emplace_back(std::get<1>(it->second));
+            }
+        }
+
+        while (true)
+        {
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            double elapsed = std::chrono::duration<double>(currentTime - startTime).count();
+
+            if (elapsed > duration) break;
+
+            double y = std::abs(sin(3 * 3.14159265358979323846 * (elapsed / duration)));
+            ImU32 greenValue = 77 + (255 - 77) * y;
+
+            for (auto& colorRef : instanceColors)
+            {
+                colorRef.get() = IM_COL32(77, greenValue, 77, 255);
+            }
+
+            Utils::SleepFor(std::chrono::milliseconds(10));
+        }
+    }).detach();
 }
 
 void InstanceControl::DeleteInstance(const std::string& name)
 {
-    Roblox::NukeInstance(instances[name].PackageFullName, instances[name].InstallLocation);
+    Roblox::NukeInstance(std::get<Roblox::Instance>(m_Instances[name]).PackageFullName, std::get<Roblox::Instance>(m_Instances[name]).InstallLocation);
 }
 
 void InstanceControl::CreateGroup(const GroupCreationInfo& info)
 {
-	std::unordered_map<std::string, std::shared_ptr<Manager>> managers;
-	for (const auto& username : info.usernames)
-	{
-		auto it = instances.find(username);
-		if (it != instances.end())
-		{
-			auto& instance = it->second;
-			auto manager = std::make_shared<Manager>(instance, username, info.placeid, info.linkcode);
-			managers[username] = manager;
-		}
-	}
+    std::unordered_map<std::string, std::shared_ptr<Manager>> managers;
+    for (const auto& username : info.usernames)
+    {
+        auto it = m_Instances.find(username);
+        if (it != m_Instances.end())
+        {
+            auto& instance = std::get<0>(it->second);
+            auto manager = std::make_shared<Manager>(instance, username, info.placeid, info.linkcode);
+            managers[username] = manager;
 
-	auto result = m_Groups.insert({ info.groupname, std::make_shared<Group>(std::move(managers), info.relaunchinterval, info.launchdelay, info.dllpath, info.mode, info.method, info.color)});
-	if (result.second)
-	{
-		result.first->second->Start();
-	}
-}
+            std::get<1>(it->second) = info.color;
+        }
+    }
 
-ImU32 InstanceControl::GetGroupColor(const std::string& groupname)
-{
-	if (m_Groups.find(groupname) == m_Groups.end())
-	{
-		return IM_COL32(77, 77, 77, 255);
-	}
-
-	return m_Groups[groupname]->GetColor();
+    auto result = m_Groups.insert({ info.groupname, std::make_shared<Group>(std::move(managers), info.relaunchinterval, info.launchdelay, info.injectdelay, info.dllpath, info.mode, info.method) } );
+    if (result.second)
+    {
+        result.first->second->Start();
+    }
 }
 
 std::shared_ptr<Manager> InstanceControl::GetManager(const std::string& username)
@@ -174,6 +211,6 @@ std::shared_ptr<Manager> InstanceControl::GetManager(const std::string& username
 
 const Roblox::Instance& InstanceControl::GetInstance(const std::string& username)
 {
-	return instances[username];
+	return std::get<Roblox::Instance>(m_Instances[username]);
 }
 
