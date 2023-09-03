@@ -23,7 +23,7 @@ namespace Native
     bool InstallUWPApp(const winrt::hstring& packagePath);
     bool RemoveUWPApp(const winrt::hstring& packageFullName);
     std::optional<DWORD> LaunchAppWithProtocol(const std::string& appName, const std::string& AppID, const std::string& protocolString);
-    std::string GetCurrentUsername();
+
     std::string GetUserProfilePath();
     PVOID GetPebAddress(HANDLE ProcessHandle);
     std::string GetCommandlineArguments(DWORD pid);

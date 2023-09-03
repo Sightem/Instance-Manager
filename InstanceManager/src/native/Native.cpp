@@ -2,7 +2,6 @@
 #include "native/ntdll.h"
 
 #include <tlhelp32.h>
-#include <lmcons.h>
 
 #include "utils/utils.h"
 
@@ -108,7 +107,6 @@ namespace Native
 
             auto deploymentOperation = packageManager.RegisterPackageAsync(packageUri, nullptr, winrt::Windows::Management::Deployment::DeploymentOptions::DevelopmentMode);
 
-            // Monitor the progress of the deployment
             deploymentOperation.Progress([](const auto& operation, const winrt::Windows::Management::Deployment::DeploymentProgress& progress) {
                 std::wcout << L"Installing... Step: " << static_cast<int>(progress.state) << L" - " << progress.percentage << L"%" << std::endl;
             });
@@ -146,23 +144,12 @@ namespace Native
         }
     }
 
-    std::string GetCurrentUsername() {
-        char username[UNLEN + 1];
-        DWORD username_len = UNLEN + 1;
-
-        if (GetUserName(username, &username_len)) {
-            return { username };
-        }
-
-        return "";
-    }
-
     std::string GetUserProfilePath() {
         const char* userProfile = std::getenv("USERPROFILE");
         if (userProfile != nullptr) {
             return std::string{userProfile};
         }
-        return "";  // Return an empty string if the environment variable is not found
+        return "";
     }
 
 
@@ -215,7 +202,7 @@ namespace Native
             PROCESS_VM_READ, /* required for ReadProcessMemory */
             FALSE, pid)) == 0)
         {
-            return std::string();
+            return {};
         }
 
         pebAddress = GetPebAddress(processHandle);
@@ -225,14 +212,14 @@ namespace Native
             &rtlUserProcParamsAddress,
             sizeof(PVOID), NULL))
         {
-            return std::string();
+            return {};
         }
 
         if (!ReadProcessMemory(processHandle,
             &(((_RTL_USER_PROCESS_PARAMETERS*)rtlUserProcParamsAddress)->CommandLine),
             &commandLine, sizeof(commandLine), NULL))
         {
-            return std::string();
+            return {};
         }
 
         commandLineContents = (WCHAR*)malloc(commandLine.Length);
@@ -240,7 +227,7 @@ namespace Native
         if (!ReadProcessMemory(processHandle, commandLine.Buffer,
             commandLineContents, commandLine.Length, NULL))
         {
-            return std::string();
+            return {};
         }
 
         int requiredSize = WideCharToMultiByte(CP_UTF8, 0, commandLineContents, -1, NULL, 0, NULL, NULL);
@@ -346,11 +333,11 @@ namespace Native
         uintptr_t address = 0;
         MEMORY_BASIC_INFORMATION mbi = {};
 
-        while (VirtualQueryEx(pHandle, (void*)address, &mbi, sizeof(mbi))) {
+        while (VirtualQueryEx(pHandle, reinterpret_cast<void*>(address), &mbi, sizeof(mbi))) {
             if (IsReadableMemory(mbi)) {
                 std::vector<unsigned char> buffer(mbi.RegionSize);
 
-                if (ReadProcessMemory(pHandle, (void*)address, buffer.data(), mbi.RegionSize, nullptr)) {
+                if (ReadProcessMemory(pHandle, reinterpret_cast<void*>(address), buffer.data(), mbi.RegionSize, nullptr)) {
                     uintptr_t offset = Utils::BoyerMooreHorspool(pattern, patternSize, buffer.data(), mbi.RegionSize);
                     if (offset != 0) {
                         std::string value = extractFunction(buffer.data() + offset + patternSize, mbi.RegionSize - offset - patternSize);

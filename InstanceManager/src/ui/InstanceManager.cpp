@@ -43,8 +43,8 @@ void InstanceManager::StartUp()
 		);
 	});
 
-	// Create the m_Instances directory if it doesn't exist
-	std::filesystem::create_directory("m_Instances");
+	// Create the Instances directory if it doesn't exist
+	std::filesystem::create_directory("Instances");
 
 	//if config.json doesn't exist, create it
 	if (!std::filesystem::exists("config.json"))
