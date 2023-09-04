@@ -107,7 +107,7 @@ std::vector<std::string> InstanceControl::GetInstanceNames()
 
 bool InstanceControl::CreateInstance(const std::string& username)
 {
-    std::string path = fmt::format("m_Instances\\{}", username);
+    std::string path = fmt::format("Instances\\{}", username);
     std::filesystem::create_directory(path);
     FS::CopyDirectory("Template", path);
 
