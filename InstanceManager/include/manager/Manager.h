@@ -2,15 +2,20 @@
 #include <string>
 #define NOMINMAX
 #include <windows.h>
+
 #include <chrono>
+#include <utility>
 
 #include "roblox/Roblox.h"
 
-class Manager
-{
+class Manager {
 public:
 	Manager(Roblox::Instance instance, std::string username, std::string palceid, std::string linkcode)
-		: m_Instance(instance), m_Username(username), m_PlaceID(palceid), m_LinkCode(linkcode), m_CreationTime(std::chrono::system_clock::now()) {}
+	    : m_Instance(std::move(instance)),
+	      m_Username(std::move(username)),
+	      m_PlaceID(std::move(palceid)),
+	      m_LinkCode(std::move(linkcode)),
+	      m_CreationTime(std::chrono::system_clock::now()) {}
 
 	~Manager() {
 		this->terminate();
@@ -18,7 +23,7 @@ public:
 
 	bool start();
 
-	bool terminate();
+	bool terminate() const;
 
 	bool Inject(const std::string& path, const std::string& mode, const std::string& method) const;
 
@@ -34,7 +39,6 @@ private:
 	std::string m_PlaceID;
 	std::string m_LinkCode;
 	std::string m_Username;
-	std::mutex mutex;
 	DWORD m_Pid = 0;
 	Roblox::Instance m_Instance;
 	std::chrono::system_clock::time_point m_CreationTime;

@@ -1,61 +1,27 @@
 #include "ui/UI.h"
 
-static const char* DISALLOWED_CHARS = "<>:\"/\\|?*\t\n\r ";
-
-static int _MyResizeCallback(ImGuiInputTextCallbackData* data)
-{
-    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
-    {
-        std::string* my_str = (std::string*)data->UserData;
-        IM_ASSERT(&my_str->front() == data->Buf);
-        my_str->resize(data->BufSize - 1);
-        data->Buf = &my_str->front();
-    }
-    return 0;
-}
-
-static int _WindowsNameFilter(ImGuiInputTextCallbackData* data)
-{
-    if (strchr(DISALLOWED_CHARS, (char)data->EventChar))
-        return 1;
-
-    // Check for underscore and replace with hyphen
-    if (data->EventChar == '_')
-    {
-        data->EventChar = '-';
-        return 0; // Allow the new character to pass through
-    }
-
-    return 0;
-}
-
 namespace ui
 {
-    bool InputTextWithHint(const char* label, const char* hint, std::string* my_str, ImGuiInputTextFlags flags)
-    {
-        IM_ASSERT((flags & (ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCharFilter)) == 0);
-        // Combine the resize callback and character filter callback
-        auto combinedCallback = [](ImGuiInputTextCallbackData* data) -> int
+    int FilterCallback(ImGuiInputTextCallbackData *data) {
+        const char* DISALLOWED_CHARS = "<>:\"/\\|?*\t\n\r ";
+
+        char character = data->EventChar;
+
+        if (character == '_')
         {
-            if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
-                return _MyResizeCallback(data);
-            else if (data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter)
-                return _WindowsNameFilter(data);
+            data->EventChar = '-';
             return 0;
-        };
-
-        if (my_str->empty()) {
-            my_str->resize(1);
         }
-        bool result = ImGui::InputTextWithHint(label, hint, &my_str->front(), my_str->size() + 1, flags | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCharFilter, combinedCallback, (void*)my_str);
 
-        // Resize the string to its actual length after the InputTextWithHint call
-        size_t actual_length = strlen(&my_str->front());
-        my_str->resize(actual_length);
 
-        return result;
+        for (int i = 0; DISALLOWED_CHARS[i]; ++i)
+        {
+            if (character == DISALLOWED_CHARS[i])
+                return 1;
+        }
+
+        return 0;
     }
-
 
     bool ConditionalButton(const char* label, bool condition, ButtonStyle style)
     {

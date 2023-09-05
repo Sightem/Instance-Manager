@@ -1,26 +1,26 @@
 #pragma once
-#include  "imgui.h"
-#include <thread>
+#include <fmt/chrono.h>
+#include <fmt/color.h>
+#include <fmt/format.h>
+
 #include <condition_variable>
 #include <queue>
-#include <fmt/format.h>
-#include <fmt/color.h>
-#include <fmt/chrono.h>
+#include <thread>
+
+#include "imgui.h"
 
 // totally not stolen from the imgui demo
-class AppLog
-{
+class AppLog {
 public:
 	void Clear();
 
-    AppLog();
+	AppLog();
 
-    ~AppLog()
-    {
-        Clear();
-    }
+	~AppLog() {
+		Clear();
+	}
 
-    void Draw();
+	void Draw();
 
 private:
 	void ProcessLog(const std::string& log);

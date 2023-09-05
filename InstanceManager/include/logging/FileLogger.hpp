@@ -16,7 +16,7 @@ public:
         auto now_time_t = std::chrono::system_clock::to_time_t(now);
         std::ostringstream filename;
 
-        std::tm local_tm;
+        std::tm local_tm{};
         localtime_s(&local_tm, &now_time_t);
 
         filename << "log_" << std::put_time(&local_tm, "%Y_%m_%d_%H_%M_%S") << ".log";

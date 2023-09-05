@@ -1,8 +1,7 @@
 #pragma once
 #include <string>
 
-namespace StringUtils
-{
-    bool ContainsOnly(const std::string& s, char c);
+namespace StringUtils {
+	bool ContainsOnly(const std::string& s, char c);
 
 }

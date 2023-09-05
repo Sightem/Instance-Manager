@@ -12,7 +12,7 @@
 #include "utils/Utils.h"
 #include "utils/string/StringUtils.h"
 #include "logging/CoreLogger.hpp"
-#include "logging/FileLogger.h"
+#include "logging/FileLogger.hpp"
 #include "roblox/Roblox.h"
 
 std::vector<std::string> g_InstanceNames = g_InstanceControl.GetInstanceNames();
@@ -189,11 +189,11 @@ void InstanceManager::Update()
 
 						ImGui::PushItemWidth(130.0f);
 
-						ui::InputTextWithHint("##placeid", "PlaceID", &placeID);
+						ImGui::InputTextWithHint("##placeid", "PlaceID", &placeID, ImGuiInputTextFlags_CharsDecimal);
 
 						ImGui::SameLine();
 
-						ui::InputTextWithHint("##linkcode", "VIP link code", &linkCode);
+                        ImGui::InputTextWithHint("##linkcode", "VIP link code", &linkCode, ImGuiInputTextFlags_CharsDecimal);
 
 						ImGui::SameLine();
 
@@ -251,6 +251,8 @@ void InstanceManager::Update()
 
 	m_FileManagement.Draw("File Management");
 	m_AutoRelaunch.Draw("Auto Relaunch");
+
+    ImGui::ShowDemoWindow();
 }
 
 void InstanceManager::RenderProcessControl()
@@ -268,9 +270,9 @@ void InstanceManager::RenderProcessControl()
 		{
 			ForEachSelectedInstance([&](int idx)
 				{
-					auto mgr = g_InstanceControl.GetManager(g_InstanceNames[idx]);
+					auto& mgr = g_InstanceControl.GetManager(g_InstanceNames[idx]);
 
-					if (!Native::SetProcessAffinity(mgr->GetPID(), cpucores))
+					if (!Native::SetProcessAffinity(mgr.GetPID(), cpucores))
 					{
 						CoreLogger::Log(LogLevel::ERR, "Failed to set affinity for instance {}", g_InstanceNames[idx]);
 					}
@@ -309,7 +311,7 @@ void InstanceManager::RenderAutoLogin(int n)
 				if (it != g_Selection.end())
 				{
 					int64_t index = std::distance(g_Selection.begin(), it);
-					pid = g_InstanceControl.GetManager(g_InstanceNames[index])->GetPID();
+					pid = g_InstanceControl.GetManager(g_InstanceNames[index]).GetPID();
 				}
 
                 HWND hWnd = FindWindow(NULL, g_InstanceControl.GetInstance(g_InstanceNames[n]).DisplayName.c_str());
@@ -522,7 +524,7 @@ void InstanceManager::RenderCreateInstance()
 
 	ImGui::PushItemWidth(ImGui::GetWindowWidth() - 315.0f);
 
-	ui::InputTextWithHint("##NameStr", "Input the instance name here...", &instanceNameBuf);
+    ImGui::InputTextWithHint("##NameStr", "Input the instance name here...", &instanceNameBuf, ImGuiInputTextFlags_CallbackCharFilter, ui::FilterCallback);
 
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(R"(Disallowed characters: <>:\"/\\|?*\t\n\r )");

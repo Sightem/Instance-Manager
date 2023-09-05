@@ -88,23 +88,23 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 
 		ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.20f);
 		static std::string PlaceID;
-		ImGui::InputTextWithHint("##placeidar", "Place ID", &PlaceID);
+		ImGui::InputTextWithHint("##placeidar", "Place ID", &PlaceID, ImGuiInputTextFlags_CharsDecimal);
 
 		static std::string vipCode;
 		ImGui::SameLine();
-		ImGui::InputTextWithHint("##vipcodear", "VIP Code", &vipCode);
+		ImGui::InputTextWithHint("##vipcodear", "VIP Code", &vipCode, ImGuiInputTextFlags_CharsDecimal);
 
 		ImGui::SameLine();
 		static std::string launchDelay;
-		ImGui::InputTextWithHint("##launchdelayar", "Launch Delay (Seconds)", &launchDelay);
+		ImGui::InputTextWithHint("##launchdelayar", "Launch Delay (Seconds)", &launchDelay, ImGuiInputTextFlags_CharsDecimal);
 
 		ImGui::SameLine();
 		static std::string relaunchInterval;
-		ImGui::InputTextWithHint("##relaunchintervalar", "Relaunch Interval (Minutes)", &relaunchInterval);
+		ImGui::InputTextWithHint("##relaunchintervalar", "Relaunch Interval (Minutes)", &relaunchInterval, ImGuiInputTextFlags_CharsDecimal);
 
         ImGui::SameLine();
         static std::string injectDelay;
-        ImGui::InputTextWithHint("##injectdelayar", "Inject Delay (Seconds)", &injectDelay);
+        ImGui::InputTextWithHint("##injectdelayar", "Inject Delay (Seconds)", &injectDelay, ImGuiInputTextFlags_CharsDecimal);
 
         static bool isLoaded = false;
         if (!isLoaded)
@@ -162,14 +162,14 @@ void AutoRelaunch::Draw(const char* title, bool* p_open)
 			const float inputTextWidth = ImGui::GetContentRegionAvail().x - buttonSize.x - padding;
 			ImGui::PushItemWidth(inputTextWidth);
 
-            const std::array<std::string, 2> injectionModes = { "LoadLibrary", "ManualMap" };
+            constexpr std::array<const char*, 2> injectionModes = { "LoadLibrary", "ManualMap" };
             static int selectedInjectionMode = 0;
             if (ui::RenderCombo("##Injection Mode", injectionModes, selectedInjectionMode))
             {
                 this->m_InjectionMode = injectionModes[selectedInjectionMode];
             }
 
-            const std::array<std::string, 5> injectionMethods = { "NtCreateThreadEx", "HijackThread", "SetWindowsHookEx", "QueueUserAPC", "SetWindowLong" };
+            constexpr std::array<const char*, 5> injectionMethods = { "NtCreateThreadEx", "HijackThread", "SetWindowsHookEx", "QueueUserAPC", "SetWindowLong" };
             static int selectedInjectionMethod = 0;
             if (ui::RenderCombo("##Injection Method", injectionMethods, selectedInjectionMethod))
             {

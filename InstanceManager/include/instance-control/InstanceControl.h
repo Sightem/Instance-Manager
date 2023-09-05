@@ -19,20 +19,17 @@ public:
 	bool LaunchInstance(const std::string& username, const std::string& placeid, const std::string& linkcode);
 	bool TerminateInstance(const std::string& username);
 	bool IsInstanceRunning(const std::string& username);
+	bool CreateInstance(const std::string& name);
 
-	bool IsGrouped(const std::string& username);
+    std::vector<std::string> GetInstanceNames();
 
-	std::vector<std::string> GetInstanceNames();
-
-	std::shared_ptr<Manager> GetManager(const std::string& username);
+    Manager& GetManager(const std::string& username);
 
 	const Roblox::Instance& GetInstance(const std::string& username);
 
-	bool CreateInstance(const std::string& name);
 
 	void TerminateGroup(const std::string& groupname);
-
-	void DeleteInstance(const std::string& name);
+    void DeleteInstance(const std::string& name);
 
     struct GroupCreationInfo {
         std::string groupname;
@@ -59,8 +56,8 @@ private:
 	friend InstanceControl& GetPrivateInstance();
 
 	std::unordered_map<std::string, std::tuple<Roblox::Instance, ImU32>> m_Instances = Roblox::ProcessRobloxPackages();
-	std::unordered_map<std::string, std::shared_ptr<Manager>> m_LaunchedInstances;
-	std::unordered_map<std::string, std::shared_ptr<Group>> m_Groups;
+	std::unordered_map<std::string, std::unique_ptr<Manager>> m_LaunchedInstances;
+	std::unordered_map<std::string, std::unique_ptr<Group>> m_Groups;
 
     void AnimateNewInstances(const std::vector<std::string> &newInstances);
 };
