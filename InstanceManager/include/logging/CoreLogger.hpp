@@ -142,10 +142,22 @@ private:
 	void EnqueueMessage(LogLevel severity, const std::string& message) {
 		using namespace std::chrono;
 
-		auto now = system_clock::now();
-		auto now_ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
+		auto now_tp = std::chrono::system_clock::now();
 
-		auto timestamp = std::format("{:%Y-%m-%d %H:%M:%S}.{:03}", now, now_ms.count());
+		auto now_t = std::chrono::system_clock::to_time_t(now_tp);
+		std::tm* local_time = std::localtime(&now_t);
+
+		auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp.time_since_epoch()) % 1000;
+
+		auto timestamp = fmt::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}",
+		                             local_time->tm_year + 1900,
+		                             local_time->tm_mon + 1,
+		                             local_time->tm_mday,
+		                             local_time->tm_hour,
+		                             local_time->tm_min,
+		                             local_time->tm_sec,
+		                             now_ms.count());
+
 
 		{
 			std::scoped_lock lock(m_queueLock);

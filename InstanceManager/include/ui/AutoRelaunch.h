@@ -4,8 +4,8 @@
 #include <string>
 #include <vector>
 #define NOMINMAX
-#include <commdlg.h>
 #include <windows.h>
+#include <commdlg.h>
 
 #include "UI.h"
 #include "config/Config.hpp"
