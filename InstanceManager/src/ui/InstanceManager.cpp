@@ -178,8 +178,6 @@ void InstanceManager::Update() {
 
 	m_FileManagement.Draw("File Management");
 	m_AutoRelaunch.Draw("Auto Relaunch");
-
-	ImGui::ShowDemoWindow();
 }
 
 void InstanceManager::RenderProcessControl() {
