@@ -430,20 +430,14 @@ void InstanceManager::RenderRemoveInstances() {
 	ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
 	if (ImGui::BeginPopupModal("Delete?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-		int64_t num_selected = std::count(g_Selection.begin(), g_Selection.end(), true);
-
-		if (num_selected == 1) {
-			ImGui::Text("This will delete all the files related to the selected instance and unregister it.\nThis operation cannot be undone!\n\n");
-		} else {
-			ImGui::Text("This will delete all the files related to the %d selected m_Instances and unregister them.\nThis operation cannot be undone!\n\n", num_selected);
-		}
+		ImGui::Text("This will delete all the files related to the selected instances and unregister it.\nThis operation cannot be undone!\n\n");
 		ImGui::Separator();
 
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 		ImGui::Checkbox("Don't ask me next time", &removeDontAskMeNextTime);
 		ImGui::PopStyleVar();
 
-		if (ImGui::Button("OK", ImVec2(523.0f / 2.0f, 0))) {
+		if (ImGui::Button("OK", ImVec2(ImGui::GetContentRegionAvail().x / 2.0f, 0))) {
 			std::set<int> selectedIndices;
 			for (int i = 0; i < g_Selection.size(); ++i) {
 				if (g_Selection[i]) {
@@ -457,7 +451,7 @@ void InstanceManager::RenderRemoveInstances() {
 
 		ImGui::SetItemDefaultFocus();
 		ImGui::SameLine();
-		if (ImGui::Button("Cancel", ImVec2(523.0f / 2.0f, 0))) { ImGui::CloseCurrentPopup(); }
+		if (ImGui::Button("Cancel", ImVec2(ImGui::GetContentRegionAvail().x, 0))) { ImGui::CloseCurrentPopup(); }
 		ImGui::EndPopup();
 	}
 	ImGui::EndPopup();
