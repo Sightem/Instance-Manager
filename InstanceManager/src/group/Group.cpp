@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "utils/Utils.h"
+#include "utils/Utils.hpp"
 
 using Minutes = std::chrono::minutes;
 using Seconds = std::chrono::seconds;

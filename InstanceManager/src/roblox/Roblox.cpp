@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <regex>
+#include <variant>
 
 #include "cpr/cpr.h"
 #include "instance-control/InstanceControl.h"
@@ -9,7 +10,7 @@
 #include "native/Native.h"
 #include "nlohmann/json.hpp"
 #include "tinyxml2.h"
-#include "utils/Utils.h"
+#include "utils/Utils.hpp"
 #include "utils/filesystem/FS.h"
 
 #define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
@@ -118,54 +119,48 @@ namespace Roblox {
 		return instancesMap;
 	}
 
-	ModifyXMLError ModifySettings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue) {
+	ModifyXMLError ModifySettings(const std::string& filePath, const std::vector<Setting>& settings) {
 		tinyxml2::XMLDocument doc;
 		tinyxml2::XMLError eResult = doc.LoadFile(filePath.c_str());
 		if (eResult != tinyxml2::XML_SUCCESS) {
-			return ModifyXMLError::LoadError;
+			throw std::runtime_error("Failed to load XML file.");
 		}
 
-		tinyxml2::XMLElement* itemElement = doc.FirstChildElement("roblox")->FirstChildElement("Item");
-		if (!itemElement || std::string(itemElement->Attribute("class")) != "UserGameSettings") {
-			return ModifyXMLError::NotFound;
-		}
-
-		tinyxml2::XMLElement* propertiesElement = itemElement->FirstChildElement("Properties");
+		// Accessing the properties element as before
+		tinyxml2::XMLElement* propertiesElement = doc.FirstChildElement("roblox")
+		                                                  ->FirstChildElement("Item")
+		                                                  ->FirstChildElement("Properties");
 		if (!propertiesElement) {
-			return ModifyXMLError::NotFound;
+			throw std::runtime_error("Properties element not found.");
 		}
 
-		tinyxml2::XMLElement* graphicsQualityElement = propertiesElement->FirstChildElement("int");
-		while (graphicsQualityElement && std::string(graphicsQualityElement->Attribute("name")) != "GraphicsQualityLevel") {
-			graphicsQualityElement = graphicsQualityElement->NextSiblingElement("int");
-		}
-		if (graphicsQualityElement) {
-			graphicsQualityElement->SetText(newGraphicsQualityValue);
-		}
+		for (const auto& setting : settings) {
+			tinyxml2::XMLElement* element = propertiesElement->FirstChildElement(setting.type.c_str());
+			while (element && std::string(element->Attribute("name")) != setting.name) {
+				element = element->NextSiblingElement(setting.type.c_str());
+			}
 
-		tinyxml2::XMLElement* masterVolumeElement = propertiesElement->FirstChildElement("float");
-		while (masterVolumeElement && std::string(masterVolumeElement->Attribute("name")) != "MasterVolume") {
-			masterVolumeElement = masterVolumeElement->NextSiblingElement("float");
-		}
-		if (masterVolumeElement) {
-			masterVolumeElement->SetText(newMasterVolumeValue);
-		}
-
-		tinyxml2::XMLElement* savedQualityElement = propertiesElement->FirstChildElement("token");
-		while (savedQualityElement && std::string(savedQualityElement->Attribute("name")) != "SavedQualityLevel") {
-			savedQualityElement = savedQualityElement->NextSiblingElement("token");
-		}
-		if (savedQualityElement) {
-			savedQualityElement->SetText(newSavedQualityValue);
+			if (element) {
+				std::visit([&element](auto&& arg) {
+					using T = std::decay_t<decltype(arg)>;
+					if constexpr (std::is_same_v<T, int> || std::is_same_v<T, float>) {
+						element->SetText(arg);
+					} else {
+						element->SetText(arg.c_str());
+					}
+				}, setting.value);
+			}
 		}
 
 		eResult = doc.SaveFile(filePath.c_str());
 		if (eResult != tinyxml2::XML_SUCCESS) {
-			return ModifyXMLError::SaveError;
+			throw std::runtime_error("Failed to save XML file.");
 		}
 
 		return ModifyXMLError::Success;
 	}
+
+
 
 	std::string EnterCode(const std::string& code, std::string cookie) {
 		nlohmann::json j;

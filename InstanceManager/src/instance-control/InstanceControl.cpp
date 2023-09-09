@@ -69,7 +69,6 @@ void InstanceControl::TerminateGroup(const std::string& groupname) {
 	m_Groups.erase(it);
 }
 
-
 std::vector<std::string> InstanceControl::GetInstanceNames() {
 	std::vector<std::string> names;
 	for (auto& instance: m_Instances) {
@@ -103,41 +102,45 @@ bool InstanceControl::CreateInstance(const std::string& username) {
 			newInstances.push_back(pair.first);
 	}
 
-	AnimateNewInstances(newInstances);
+	std::thread(&InstanceControl::AnimateThread, this, newInstances).detach();
 
 	return true;
 }
 
-void InstanceControl::AnimateNewInstances(const std::vector<std::string>& newInstances) {
-	std::thread([this, newInstances]() {
-		auto startTime = std::chrono::high_resolution_clock::now();
-		double duration = 2.0;
 
-		std::vector<std::reference_wrapper<ImU32>> instanceColors;
-		for (const auto& instanceName: newInstances) {
-			auto it = m_Instances.find(instanceName);
-			if (it != m_Instances.end()) {
-				instanceColors.emplace_back(std::get<1>(it->second));
-			}
+void InstanceControl::AnimateThread(const std::vector<std::string>& newInstances) {
+	auto startTime = std::chrono::high_resolution_clock::now();
+	double duration = 2.0;
+
+	std::vector<std::reference_wrapper<ImU32>> instanceColors;
+	for (const auto& instanceName: newInstances) {
+		auto it = m_Instances.find(instanceName);
+		if (it != m_Instances.end()) {
+			instanceColors.emplace_back(std::get<1>(it->second));
+		}
+	}
+
+	constexpr static auto sine_period = 3 * 3.14159265358979323846;
+	constexpr static auto base_color = 77;
+	constexpr static auto offset_color = 255 - 77;
+	constexpr static auto wait_period = std::chrono::milliseconds(10);
+
+	while (true) {
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		double elapsed = std::chrono::duration<double>(currentTime - startTime).count();
+
+		if (elapsed > duration)
+			break;
+
+		double y = std::abs(sin(sine_period * (elapsed / duration)));
+		ImU32 greenValue = base_color + offset_color * y;
+
+		for (auto& colorRef: instanceColors) {
+			colorRef.get() = IM_COL32(base_color, greenValue, base_color, 0xFF);
 		}
 
-		while (true) {
-			auto currentTime = std::chrono::high_resolution_clock::now();
-			double elapsed = std::chrono::duration<double>(currentTime - startTime).count();
-
-			if (elapsed > duration)
-				break;
-
-			double y = std::abs(sin(3 * 3.14159265358979323846 * (elapsed / duration)));
-			ImU32 greenValue = 77 + (255 - 77) * y;
-
-			for (auto& colorRef: instanceColors) {
-				colorRef.get() = IM_COL32(77, greenValue, 77, 255);
-			}
-
-			Utils::SleepFor(std::chrono::milliseconds(10));
-		}
-	}).detach();
+		Utils::SleepFor(std::chrono::milliseconds(wait_period));
+	}
 }
 
 void InstanceControl::DeleteInstance(const std::string& name) {

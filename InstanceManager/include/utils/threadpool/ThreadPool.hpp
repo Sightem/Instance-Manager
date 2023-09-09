@@ -1,99 +1,99 @@
 #pragma once
+#include <condition_variable>
 #include <functional>
 #include <future>
 #include <mutex>
+#include <optional>
 #include <queue>
-#include <shared_mutex>
-#include <unordered_map>
+#include <thread>
+#include <tuple>
+#include <type_traits>
 #include <vector>
+
+using Callback = std::function<void()>;
+
+
+class TaskWrapper {
+	struct ITask {
+		virtual ~ITask() = default;
+		virtual void execute() = 0;
+	};
+
+	template<typename Func>
+	struct TaskHolder : ITask {
+		explicit TaskHolder(Func&& func) : func_(std::move(func)) {}
+		void execute() override { func_(); }
+		Func func_;
+	};
+
+	std::unique_ptr<ITask> task_;
+
+public:
+	template<class Func>
+	explicit TaskWrapper(Func&& func) {
+		task_ = std::make_unique<TaskHolder<Func>>(std::move(func));
+	}
+
+	void operator()() {
+		task_->execute();
+	}
+};
 
 class ThreadPool {
 public:
-	void SubmitTask(const std::string& id,
-	                std::function<void(const std::atomic<bool>&)> task,
-	                std::function<void()> callback = nullptr) {
-		{
-			std::unique_lock lock(smtx);
-			if (tasks_map.find(id) == tasks_map.end()) {
-				tasks_map[id] = TaskInfo();
-				if (callback) {
-					callbacks_map[id] = callback;
-				}
-				termination_flags[id] = std::make_shared<std::atomic<bool>>(false);
-			}
-			tasks_map[id].total += 1;
-		}
+	explicit ThreadPool(size_t num_threads);
 
-		auto flag = termination_flags[id];
-		futures.push_back(
-		        std::async(std::launch::async, [this, id, task, flag]() {
-			        task(*flag);
+	~ThreadPool();
 
-			        std::unique_lock lock(smtx);
-			        tasks_map[id].completed += 1;
-			        if (tasks_map[id].total == tasks_map[id].completed) {
-				        if (callbacks_map.find(id) != callbacks_map.end()) {
-					        callbacks_map[id]();// Call the callback
-					        callbacks_map.erase(id);
-				        }
-				        tasks_map.erase(id);
-				        termination_flags.erase(id);
-			        }
-		        }));
+	template<class F, class... Args>
+	auto SubmitTask(Callback cb, F&& f, Args&&... args)
+	        -> std::future<std::invoke_result_t<F, Args...>>;
 
-		CleanupFutures();
-	}
-
-	void SubmitTask(const std::string& id,
-	                std::function<void()> simpleTask,
-	                std::function<void()> callback = nullptr) {
-		auto wrappedTask = [simpleTask](const std::atomic<bool>&) {
-			simpleTask();
-		};
-		SubmitTask(id, wrappedTask, callback);
-	}
-
-	void TerminateTask(const std::string& id) {
-		std::shared_lock lock(smtx);
-		if (termination_flags.find(id) != termination_flags.end()) {
-			*termination_flags[id] = true;
-		}
-	}
-
-	int GetCompletedCount(const std::string& id) const {
-		std::shared_lock lock(smtx);
-		if (tasks_map.find(id) != tasks_map.end()) {
-			return tasks_map.at(id).completed;
-		}
-		return 0;
-	}
-
-	int GetTotalCount(const std::string& id) const {
-		std::shared_lock lock(smtx);
-		if (tasks_map.find(id) != tasks_map.end()) {
-			return tasks_map.at(id).total;
-		}
-		return 0;
+	template<class F, class... Args>
+	auto SubmitTask(F&& f, Args&&... args)
+	        -> std::future<std::invoke_result_t<F, Args...>> {
+		return SubmitTask(nullptr, std::forward<F>(f), std::forward<Args>(args)...);
 	}
 
 private:
-	struct TaskInfo {
-		int total = 0;
-		int completed = 0;
+	std::vector<std::thread> workers;
+	std::queue<TaskWrapper> tasks;
+
+	std::mutex queue_mutex;
+	std::condition_variable condition;
+	bool stop = false;
+};
+
+template<class F, class... Args>
+auto ThreadPool::SubmitTask(Callback cb, F&& f, Args&&... args)
+        -> std::future<std::invoke_result_t<F, Args...>> {
+	using return_type = std::invoke_result_t<F, Args...>;
+
+	auto args_tuple = std::tuple(std::forward<Args>(args)...);
+
+	auto task_function = [f = std::forward<F>(f), cb, args_tuple = std::tuple{std::forward<Args>(args)...}]() -> return_type {
+		if constexpr (std::is_same_v<return_type, void>) {
+			std::apply(f, args_tuple);
+			if (cb) cb();
+		} else {
+			auto result = std::apply(f, args_tuple);
+			if (cb) cb();
+			return result;
+		}
 	};
 
-	void CleanupFutures() {
-		std::unique_lock lock(smtx);
-		futures.erase(std::remove_if(futures.begin(), futures.end(),
-		                             [](const std::future<void>& fut) {
-			                             return fut.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
-		                             }),
-		              futures.end());
+
+	std::packaged_task<return_type()> packaged(std::move(task_function));
+	std::future<return_type> result = packaged.get_future();
+
+	{
+		std::scoped_lock<std::mutex> lock(queue_mutex);
+		if (stop) {
+			throw std::runtime_error("SubmitTask on stopped ThreadPool");
+		}
+		tasks.emplace(std::move(packaged));
 	}
 
-	std::unordered_map<std::string, TaskInfo> tasks_map;
-	std::unordered_map<std::string, std::function<void()>> callbacks_map;
-	std::unordered_map<std::string, std::shared_ptr<std::atomic<bool>>> termination_flags;
-	std::vector<std::future<void>> futures;
-	mutable std::shared_mutex smtx;
-};
+	condition.notify_one();
+	return result;
+}

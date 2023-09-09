@@ -11,24 +11,16 @@
 #include "ui/AppLog.hpp"
 #include "ui/CustomWidgets.hpp"
 #include "ui/UI.h"
-#include "utils/Utils.h"
+#include "utils/Utils.hpp"
 #include "utils/string/StringUtils.h"
-#include "utils/threadpool/ThreadPool.hpp"
 
 std::vector<std::string> g_InstanceNames = g_InstanceControl.GetInstanceNames();
 std::vector<bool> g_Selection;
 
 InstanceManager::InstanceManager() : m_FileManagement(g_InstanceNames, g_Selection),
-                                     m_AutoRelaunch(g_InstanceNames) {}
-
-template<typename Func>
-void ForEachSelectedInstance(Func func) {
-	for (int i = 0; i < g_Selection.size(); ++i) {
-		if (g_Selection[i]) {
-			func(i);
-		}
-	}
-}
+                                     m_AutoRelaunch(g_InstanceNames),
+                                     m_QueuedThreadPool(1),
+                                     m_ThreadPool(4){}
 
 void InstanceManager::StartUp() {
 	std::ranges::sort(g_InstanceNames, [](const std::string& a, const std::string& b) {
@@ -38,10 +30,8 @@ void InstanceManager::StartUp() {
 		                                    });
 	});
 
-	// Create the Instances directory if it doesn't exist
 	std::filesystem::create_directory("Instances");
 
-	//if config.json doesn't exist, create it
 	if (!std::filesystem::exists("config.json")) {
 		std::ofstream ofs("config.json", std::ofstream::out | std::ofstream::trunc);
 		nlohmann::json j;
@@ -50,15 +40,12 @@ void InstanceManager::StartUp() {
 		j["lastDelay"] = "";
 		j["lastInterval"] = "";
 		j["lastInjectDelay"] = "";
-
-		//save to file
 		ofs << j.dump(4);
 
 		ofs.flush();
 		ofs.close();
 	}
 
-	// load config.json
 	Config::getInstance().Load("config.json");
 
 	if (!std::filesystem::exists("logs")) {
@@ -66,16 +53,13 @@ void InstanceManager::StartUp() {
 	}
 
 	std::string logPath = std::filesystem::current_path().string() + "\\logs";
-
 	FileLogger& fileLogger = FileLogger::GetInstance();
 	fileLogger.Initialize(logPath);
 }
 
 void InstanceManager::Update() {
-	ImGui::Begin("Instance Manager", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoNav);
+	ImGui::Begin("Instance Manager", nullptr);
 
-	static auto& config = Config::getInstance().Get();
-	static int lastSelectedIndex = -1;
 	if (g_Selection.size() != g_InstanceNames.size()) {
 		g_Selection.resize(g_InstanceNames.size());
 	}
@@ -83,7 +67,7 @@ void InstanceManager::Update() {
 	static ImGuiTextFilter filter;
 	filter.Draw("##Filter", -FLT_MIN);
 
-	if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN, 25 * ImGui::GetTextLineHeightWithSpacing()))) {
+	if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN, ImGui::GetContentRegionAvail().y * (2.0f / 3.0f)))) {
 		if (!ImGui::IsAnyItemActive() && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A))) {
 			for (int n = 0; n < g_InstanceNames.size(); ++n) {
 				const std::string& path_name = g_InstanceNames[n];
@@ -106,6 +90,7 @@ void InstanceManager::Update() {
 				ImGui::SameLine();
 
 				const bool is_selected = g_Selection[n];
+				static int lastSelectedIndex = -1;
 				if (ImGui::Selectable(g_InstanceNames[n].c_str(), is_selected)) {
 					if (ImGui::GetIO().KeyShift && lastSelectedIndex != -1) {
 						// Handle range selection
@@ -152,34 +137,7 @@ void InstanceManager::Update() {
 
 					ImGui::Separator();
 
-					if (ImGui::TreeNode("Launch control")) {
-						static std::string placeID = config["lastPlaceID"];
-						static std::string linkCode = config["lastVip"];
-
-						ImGui::PushItemWidth(130.0f);
-
-						ImGui::InputTextWithHint("##placeid", "PlaceID", &placeID, ImGuiInputTextFlags_CharsDecimal);
-
-						ImGui::SameLine();
-
-						ImGui::InputTextWithHint("##linkcode", "VIP link code", &linkCode, ImGuiInputTextFlags_CharsDecimal);
-
-						ImGui::SameLine();
-
-						static double launchDelay = 0;
-						ImGui::InputDouble("##delay", &launchDelay);
-
-						ImGui::PopItemWidth();
-
-						ImGui::SameLine();
-
-						RenderLaunch(placeID, linkCode, launchDelay);
-
-						ImGui::SameLine();
-
-						RenderTerminate();
-						ImGui::TreePop();
-					}
+					RenderLaunch();
 
 					RenderSettings();
 
@@ -234,7 +192,7 @@ void InstanceManager::RenderProcessControl() {
 		ui::HelpMarker("This will set the affinity of the process to the selected amount of cores.");
 
 		if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
-			ForEachSelectedInstance([&](int idx) {
+			Utils::ForEachSelectedInstance(g_Selection, [&](int idx) {
 				auto& mgr = g_InstanceControl.GetManager(g_InstanceNames[idx]);
 
 				if (!Native::SetProcessAffinity(mgr.GetPID(), cpucores)) {
@@ -310,28 +268,59 @@ void InstanceManager::RenderAutoLogin(int n) {
 	}
 }
 
-void InstanceManager::RenderLaunch(std::string placeid, std::string linkcode, double launchdelay) {
+void InstanceManager::RenderLaunch()
+{
+	static auto& config = Config::getInstance().Get();
+	if (ImGui::TreeNode("Launch control")) {
+		static std::string placeID = config["lastPlaceID"];
+		static std::string linkCode = config["lastVip"];
+
+		ImGui::PushItemWidth(130.0f);
+
+		ImGui::InputTextWithHint("##placeid", "PlaceID", &placeID, ImGuiInputTextFlags_CharsDecimal);
+
+		ImGui::SameLine();
+
+		ImGui::InputTextWithHint("##linkcode", "VIP link code", &linkCode, ImGuiInputTextFlags_CharsDecimal);
+
+		ImGui::SameLine();
+
+		static double launchDelay = 0;
+		ImGui::InputDouble("##delay", &launchDelay);
+
+		ImGui::PopItemWidth();
+
+		ImGui::SameLine();
+
+		RenderLaunchButton(placeID, linkCode, launchDelay);
+
+		ImGui::SameLine();
+
+		RenderTerminate();
+		ImGui::TreePop();
+	}
+}
+
+void InstanceManager::RenderLaunchButton(const std::string& placeid, const std::string& linkcode, double launchdelay) {
 	if (!AnyInstanceSelected())
 		return;
 
 
 	if (ui::GreenButton("Launch")) {
-		ForEachSelectedInstance([this, placeid, linkcode, launchdelay](int idx) {
+		Utils::ForEachSelectedInstance(g_Selection, [this, placeid, linkcode, launchdelay](int idx) {
 			auto callback = [idx]() {
 				CoreLogger::Log(LogLevel::INFO, "Launched {}", g_InstanceNames[idx]);
 			};
 
 			CoreLogger::Log(LogLevel::INFO, "Launching {}...", g_InstanceNames[idx]);
 
-			this->m_QueuedThreadManager.SubmitTask("delay" + std::to_string(idx), [launchdelay]() {
+			this->m_QueuedThreadPool.SubmitTask([launchdelay]() {
 				std::this_thread::sleep_for(std::chrono::milliseconds((int) (launchdelay * 1000)));
 			});
 
-			this->m_QueuedThreadManager.SubmitTask(
-			        "launchInstance" + std::to_string(idx), [idx, placeid, linkcode]() {
-				        g_InstanceControl.LaunchInstance(g_InstanceNames[idx], placeid, linkcode);
-			        },
-			        callback);
+			this->m_QueuedThreadPool.SubmitTask(callback, [idx, placeid, linkcode]() {
+				g_InstanceControl.LaunchInstance(g_InstanceNames[idx], placeid, linkcode);
+			});
 		});
 	}
 
@@ -349,21 +338,28 @@ void InstanceManager::RenderSettings() {
 		ImGui::InputScalarWithRange("Graphics Quality", &graphicsQuality, 3, 21, 1, 1, "%d");
 
 		static float newMasterVolume = 0.0f;
-		ImGui::InputScalarWithRange("Master volume", &newMasterVolume, 0.0f, 1.0f, 0.01f, 0.1f, "%.1f");
+		ImGui::InputScalarWithRange("Master volume", &newMasterVolume, 0.0f, 1.0f, 0.1f, 0.1f, "%.1f");
 
 		static int newSavedQuality = 1;
 		ImGui::InputScalarWithRange("Saved Graphics Quality", &newSavedQuality, 1, 10, 1, 1, "%d");
 
-
 		if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
-			ForEachSelectedInstance([](int idx) {
+			Utils::ForEachSelectedInstance(g_Selection, [](int idx) {
 				std::string path = fmt::format(R"({}\AppData\Local\Packages\{}\LocalState\GlobalBasicSettings_13.xml)", Native::GetUserProfilePath(), g_InstanceControl.GetInstance(g_InstanceNames[idx]).PackageFamilyName);
 
-				if (std::filesystem::exists(path))
-					Roblox::ModifySettings(path, graphicsQuality, newMasterVolume, newSavedQuality);
-				else {
+				if (std::filesystem::exists(path)) {
+					std::vector<Roblox::Setting> settings = {
+					        {"int", "GraphicsQualityLevel", graphicsQuality},
+					        {"float", "MasterVolume", newMasterVolume},
+					        {"token", "SavedQualityLevel", newSavedQuality}};
+
+					try {
+						Roblox::ModifySettings(path, settings);
+					} catch (const std::exception& e) {
+						CoreLogger::Log(LogLevel::ERR, "Failed to modify settings for instance {}: {}", g_InstanceNames[idx], e.what());
+					}
+				} else {
 					CoreLogger::Log(LogLevel::ERR, "Failed to modify settings for instance {}, Launch the instance before modifying the settings", g_InstanceNames[idx]);
-					return;
 				}
 			});
 		}
@@ -376,7 +372,7 @@ void InstanceManager::RenderTerminate() {
 		return;
 
 	if (ui::RedButton("Terminate")) {
-		ForEachSelectedInstance([](int idx) {
+		Utils::ForEachSelectedInstance(g_Selection, [](int idx) {
 			CoreLogger::Log(LogLevel::INFO, "Terminating {}", g_InstanceNames[idx]);
 			g_InstanceControl.TerminateInstance(g_InstanceNames[idx]);
 		});
@@ -385,19 +381,25 @@ void InstanceManager::RenderTerminate() {
 
 void InstanceManager::SubmitDeleteTask(int idx) {
 	const std::string instanceName = g_InstanceNames[idx];
-	this->m_ThreadManager.SubmitTask(
-	        "deleteInstance" + std::to_string(idx), [idx, instanceName]() {
-        try
-        {
-            g_InstanceControl.DeleteInstance(instanceName);
-            g_InstanceNames.erase(g_InstanceNames.begin() + idx);
-        }
-        catch (const std::exception& e)
-        {
-            CoreLogger::Log(LogLevel::WARNING, "Failed to delete {}: {}", instanceName, e.what());
-        } }, [instanceName]() { CoreLogger::Log(LogLevel::INFO, "{} has been deleted", instanceName); });
-}
 
+	auto callback = [instanceName, idx]()
+	{
+		g_InstanceNames.erase(g_InstanceNames.begin() + idx);
+		CoreLogger::Log(LogLevel::INFO, "{} has been deleted", instanceName);
+	};
+
+	this->m_QueuedThreadPool.SubmitTask(callback, [instanceName]() {
+		try
+		{
+			g_InstanceControl.DeleteInstance(instanceName);
+		}
+		catch (const std::exception& e)
+		{
+			CoreLogger::Log(LogLevel::WARNING, "Failed to delete {}: {}", instanceName, e.what());
+		}
+
+	});
+}
 
 void InstanceManager::DeleteInstances(const std::set<int>& indices) {
 	CoreLogger::Log(LogLevel::INFO, "Deleting {} instances...", indices.size());
@@ -418,7 +420,7 @@ void InstanceManager::RenderRemoveInstances() {
 		if (!removeDontAskMeNextTime) {
 			ImGui::OpenPopup("Delete?");
 		} else {
-			ForEachSelectedInstance([this](int idx) {
+			Utils::ForEachSelectedInstance(g_Selection, [this](int idx) {
 				SubmitDeleteTask(idx);
 			});
 		}
@@ -497,11 +499,9 @@ void InstanceManager::RenderCreateInstance() {
 			g_Selection.resize(g_InstanceNames.size(), false);
 		};
 
-		this->m_ThreadManager.SubmitTask(
-		        "createInstance", []() {
-			        g_InstanceControl.CreateInstance(instanceNameBuf);
-		        },
-		        completionCallback);
+		this->m_QueuedThreadPool.SubmitTask(completionCallback, []() {
+		       g_InstanceControl.CreateInstance(instanceNameBuf);
+		});
 	}
 }
 
@@ -516,11 +516,9 @@ void InstanceManager::RenderUpdateTemplate() {
 			std::filesystem::create_directories("Template\\Assets");
 		}
 
-		this->m_QueuedThreadManager.SubmitTask(
-		        "updatetemplate", [&]() {
-			        Utils::UpdatePackage("Template");
-		        },
-		        callback);
+		this->m_QueuedThreadPool.SubmitTask(callback, []() {
+			Utils::UpdatePackage("Template");
+		});
 	}
 }
 
@@ -530,19 +528,17 @@ void InstanceManager::RenderUpdateInstance() {
 		return;
 
 	if (ImGui::Button("Update Instance")) {
-		ForEachSelectedInstance([this](int idx) {
+		Utils::ForEachSelectedInstance(g_Selection, [this](int idx) {
 			auto callback = [idx]() {
 				std::string abs_path = std::filesystem::absolute(g_InstanceControl.GetInstance(g_InstanceNames[idx]).InstallLocation + "\\AppxManifest.xml").string();
 				std::string cmd = "Add-AppxPackage -path '" + abs_path + "' -register";
 				Native::RunPowershellCommand<false>(cmd);
 				CoreLogger::Log(LogLevel::INFO, "Update Done");
 			};
-			this->m_QueuedThreadManager.SubmitTask(
-			        fmt::format("updateinstances{}", idx), [idx]() {
-				        CoreLogger::Log(LogLevel::INFO, "Updating {}...", g_InstanceNames[idx]);
-				        Utils::UpdatePackage(g_InstanceControl.GetInstance(g_InstanceNames[idx]).InstallLocation, g_InstanceNames[idx]);
-			        },
-			        callback);
+			this->m_QueuedThreadPool.SubmitTask(callback, [idx]() {
+				CoreLogger::Log(LogLevel::INFO, "Updating {}...", g_InstanceNames[idx]);
+				Utils::UpdatePackage(g_InstanceControl.GetInstance(g_InstanceNames[idx]).InstallLocation, g_InstanceNames[idx]);
+			});
 		});
 		ImGui::CloseCurrentPopup();
 	}

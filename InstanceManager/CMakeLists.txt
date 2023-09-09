@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.26)
 project(Instance_Manager)
 
 # Set the C++ standard
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 # List of required packages
 set(REQUIRED_PACKAGES
@@ -56,6 +56,7 @@ add_executable(Instance_Manager
         libs/imgui/imgui_stdlib.cpp
 
         main.cpp
+        src/utils/threadpool/threadpool.cpp
 )
 
 # Link libraries

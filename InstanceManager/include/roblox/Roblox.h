@@ -9,6 +9,8 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <variant>
+
 namespace Roblox {
 	struct Instance {
 		std::string Name;
@@ -32,7 +34,14 @@ namespace Roblox {
 		SaveError
 	};
 
-	ModifyXMLError ModifySettings(std::string filePath, int newGraphicsQualityValue, float newMasterVolumeValue, int newSavedQualityValue);
+	struct Setting {
+		std::string type;
+		std::string name;
+		std::variant<int, float, std::string> value; // variant can hold multiple types
+	};
+
+	ModifyXMLError ModifySettings(const std::string& filePath, const std::vector<Setting>& settings);
+
 	std::string GetCSRF(std::string cookie);
 	std::string EnterCode(const std::string& code, std::string cookie);
 	std::string ValidateCode(const std::string& code, std::string cookie);

@@ -1,8 +1,13 @@
 #pragma once
 #include <filesystem>
+#include <opencv2/core/matx.hpp>
+#include <opencv2/opencv.hpp>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "logging/CoreLogger.hpp"
+
 
 namespace Utils {
 	std::vector<unsigned char> ParsePattern(const std::string& pattern);
@@ -16,6 +21,18 @@ namespace Utils {
 	bool SaveScreenshotAsPng(const char* filename);
 	std::pair<int, int> MatchTemplate(const std::string& template_path, double threshold);
 
+	template<typename Func, typename SelectionType>
+	    requires requires(SelectionType selection) {
+		    { selection.size() } -> std::convertible_to<std::size_t>;
+		    { selection[std::size_t{}] } -> std::convertible_to<bool>;
+	    }
+	void ForEachSelectedInstance(const SelectionType& selection, Func func) {
+		for (std::size_t i = 0; i < selection.size(); ++i) {
+			if (selection[i]) {
+				func(i);
+			}
+		}
+	}
 
 	template<typename T>
 	void SleepFor(T duration) {

@@ -1,13 +1,14 @@
 #pragma once
+#include <memory>
 #include <string>
 #include <unordered_map>
-#include <memory>
 #include <vector>
-#include "manager/Manager.h"
+
 #include "group/Group.h"
-#include "roblox/Roblox.h"
+#include "manager/Manager.h"
 #include "native/Native.h"
-#include "utils/Utils.h"
+#include "roblox/Roblox.h"
+#include "utils/Utils.hpp"
 
 class InstanceControl
 {
@@ -59,7 +60,7 @@ private:
 	std::unordered_map<std::string, std::unique_ptr<Manager>> m_LaunchedInstances;
 	std::unordered_map<std::string, std::unique_ptr<Group>> m_Groups;
 
-    void AnimateNewInstances(const std::vector<std::string> &newInstances);
+	void AnimateThread(const std::vector<std::string>& newInstances);
 };
 
 extern InstanceControl& g_InstanceControl;

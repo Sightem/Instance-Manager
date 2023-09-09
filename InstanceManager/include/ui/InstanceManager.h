@@ -3,7 +3,6 @@
 #include "FileManagement.h"
 #include "ui/AppLog.hpp"
 #include "ui/AutoRelaunch.h"
-#include "utils/threadpool/QueuedThreadPool.hpp"
 #include "utils/threadpool/ThreadPool.hpp"
 
 class InstanceManager : public AppBase<InstanceManager> {
@@ -15,15 +14,15 @@ public:
 	void Update() override;
 
 private:
-	ThreadPool m_ThreadManager;
-	QueuedThreadManager m_QueuedThreadManager;
+	ThreadPool m_ThreadPool;
+	ThreadPool m_QueuedThreadPool;
 	FileManagement m_FileManagement;
 	AutoRelaunch m_AutoRelaunch;
 	AppLog m_AppLog;
 
 	void RenderProcessControl();
 	void RenderAutoLogin(int n);
-	void RenderLaunch(std::string placeid, std::string linkcode, double launchdelay);
+	void RenderLaunchButton(const std::string& placeid, const std::string& linkcode, double launchdelay);
 	void RenderSettings();
 	void RenderTerminate();
 	void DeleteInstances(const std::set<int>& indices);
@@ -34,4 +33,5 @@ private:
 	bool AnyInstanceSelected();
 
 	void SubmitDeleteTask(int idx);
+	void RenderLaunch();
 };

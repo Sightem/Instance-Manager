@@ -7,7 +7,7 @@
 #include "logging/CoreLogger.hpp"
 #include "mouse-controller/MouseController.hpp"
 #include "native/ntdll.h"
-#include "utils/utils.h"
+#include "utils/Utils.hpp"
 
 
 namespace Native {
