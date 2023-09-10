@@ -29,6 +29,7 @@ private:
 	void RenderRemoveInstances();
 	void RenderCreateInstance();
 	void RenderUpdateTemplate();
+	void RenderContextMenu(int n);
 	void RenderUpdateInstance();
 	bool AnyInstanceSelected();
 

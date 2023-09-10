@@ -1,5 +1,7 @@
 #pragma once
+#include <algorithm>
 #include <functional>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -18,8 +20,12 @@ namespace ui {
 	bool RedButton(const char* label);
 	void HelpMarker(const char* desc);
 	bool BeginSizedListBox(const char* label, float width_ratio, float height_ratio);
-
 	unsigned int ImVec4ToUint32(const ImVec4& color);
+	void HandleMultiSelection(std::vector<bool>& selection, int n, int& lastSelectedIndex);
+	void HandleRightClickSelection(std::vector<bool>& selection, int n, int& lastSelectedIndex);
+	void HandleSelectAll(const std::vector<std::string>& instanceNames,
+	                     std::vector<bool>& selection,
+	                     const std::optional<ImGuiTextFilter>& filterOpt = std::nullopt);
 
 	template<std::size_t N>
 	bool RenderCombo(const char* label, const std::array<const char*, N>& items, int& currentItemIdx) {

@@ -69,8 +69,6 @@ auto ThreadPool::SubmitTask(Callback cb, F&& f, Args&&... args)
         -> std::future<std::invoke_result_t<F, Args...>> {
 	using return_type = std::invoke_result_t<F, Args...>;
 
-	auto args_tuple = std::tuple(std::forward<Args>(args)...);
-
 	auto task_function = [f = std::forward<F>(f), cb, args_tuple = std::tuple{std::forward<Args>(args)...}]() -> return_type {
 		if constexpr (std::is_same_v<return_type, void>) {
 			std::apply(f, args_tuple);

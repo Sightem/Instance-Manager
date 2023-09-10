@@ -20,7 +20,7 @@ std::vector<bool> g_Selection;
 InstanceManager::InstanceManager() : m_FileManagement(g_InstanceNames, g_Selection),
                                      m_AutoRelaunch(g_InstanceNames),
                                      m_QueuedThreadPool(1),
-                                     m_ThreadPool(4){}
+                                     m_ThreadPool(4) {}
 
 void InstanceManager::StartUp() {
 	std::ranges::sort(g_InstanceNames, [](const std::string& a, const std::string& b) {
@@ -68,16 +68,7 @@ void InstanceManager::Update() {
 	filter.Draw("##Filter", -FLT_MIN);
 
 	if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN, ImGui::GetContentRegionAvail().y * (2.0f / 3.0f)))) {
-		if (!ImGui::IsAnyItemActive() && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A))) {
-			for (int n = 0; n < g_InstanceNames.size(); ++n) {
-				const std::string& path_name = g_InstanceNames[n];
-				if (filter.PassFilter(path_name.c_str())) {
-					g_Selection[n] = true;
-				} else {
-					g_Selection[n] = false;
-				}
-			}
-		}
+		ui::HandleSelectAll(g_InstanceNames, g_Selection, filter);
 
 		for (int n = 0; n < g_InstanceNames.size(); ++n) {
 			const std::string& instanceName = g_InstanceNames[n];
@@ -89,77 +80,14 @@ void InstanceManager::Update() {
 				ImGui::PopStyleColor();
 				ImGui::SameLine();
 
-				const bool is_selected = g_Selection[n];
 				static int lastSelectedIndex = -1;
-				if (ImGui::Selectable(g_InstanceNames[n].c_str(), is_selected)) {
-					if (ImGui::GetIO().KeyShift && lastSelectedIndex != -1) {
-						// Handle range selection
-						int start = std::min(lastSelectedIndex, n);
-						int end = std::max(lastSelectedIndex, n);
-						for (int i = start; i <= end; ++i) {
-							g_Selection[i] = true;
-						}
-					} else if (!ImGui::GetIO().KeyCtrl) {
-						// Clear selection when CTRL is not held
-						std::fill(g_Selection.begin(), g_Selection.end(), false);
-						g_Selection[n] = true;
-					} else {
-						g_Selection[n] = !g_Selection[n];
-					}
-
-					lastSelectedIndex = n;
+				if (ImGui::Selectable(g_InstanceNames[n].c_str(), g_Selection[n])) {
+					ui::HandleMultiSelection(g_Selection, n, lastSelectedIndex);
 				}
 
-				// This fixes an annoying bug where right clicking an instance right after launching it would make the program crash
-				if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1)) {
-					// If no m_Instances or only one instance is selected, or the right clicked instance isn't part of the selection
-					if (std::count(g_Selection.begin(), g_Selection.end(), true) <= 1 || !g_Selection[n]) {
-						std::fill(g_Selection.begin(), g_Selection.end(), false);// Clear other selections
-						g_Selection[n] = true;                                   // Select the current instance
-						lastSelectedIndex = n;                                   // Update the last selected index
-					}
-				}
+				ui::HandleRightClickSelection(g_Selection, n, lastSelectedIndex);
 
-				if (ImGui::BeginPopupContextItem()) {
-					std::string selectedNames = "Selected: ";
-					bool isFirst = true;
-					for (int i = 0; i < g_Selection.size(); ++i) {
-						if (g_Selection[i]) {
-							if (!isFirst) {
-								selectedNames += ", ";
-							}
-							selectedNames += g_InstanceNames[i];
-							isFirst = false;
-						}
-					}
-
-					ImGui::Text(selectedNames.c_str());
-
-					ImGui::Separator();
-
-					RenderLaunch();
-
-					RenderSettings();
-
-					if (std::count(g_Selection.begin(), g_Selection.end(), true) > 1 || !g_InstanceControl.IsInstanceRunning(g_InstanceNames[n]))
-						ImGui::BeginDisabled();
-
-					RenderProcessControl();
-
-					RenderAutoLogin(n);
-
-					if (std::count(g_Selection.begin(), g_Selection.end(), true) > 1 || !g_InstanceControl.IsInstanceRunning(g_InstanceNames[n]))
-						ImGui::EndDisabled();
-
-					ImGui::Separator();
-
-
-					RenderUpdateInstance();
-
-					ImGui::SameLine();
-
-					RenderRemoveInstances();
-				}
+				RenderContextMenu(n);
 			}
 		}
 		ImGui::EndListBox();
@@ -178,6 +106,48 @@ void InstanceManager::Update() {
 
 	m_FileManagement.Draw("File Management");
 	m_AutoRelaunch.Draw("Auto Relaunch");
+}
+
+void InstanceManager::RenderContextMenu(int n) {
+	if (ImGui::BeginPopupContextItem()) {
+		std::string selectedNames = "Selected: ";
+		bool isFirst = true;
+		for (int i = 0; i < g_Selection.size(); ++i) {
+			if (g_Selection[i]) {
+				if (!isFirst) {
+					selectedNames += ", ";
+				}
+				selectedNames += g_InstanceNames[i];
+				isFirst = false;
+			}
+		}
+
+		ImGui::Text(selectedNames.c_str());
+
+		ImGui::Separator();
+
+		RenderLaunch();
+
+		RenderSettings();
+
+		if (std::count(g_Selection.begin(), g_Selection.end(), true) > 1 || !g_InstanceControl.IsInstanceRunning(g_InstanceNames[n]))
+			ImGui::BeginDisabled();
+
+		RenderProcessControl();
+
+		RenderAutoLogin(n);
+
+		if (std::count(g_Selection.begin(), g_Selection.end(), true) > 1 || !g_InstanceControl.IsInstanceRunning(g_InstanceNames[n]))
+			ImGui::EndDisabled();
+
+		ImGui::Separator();
+
+		RenderUpdateInstance();
+
+		ImGui::SameLine();
+
+		RenderRemoveInstances();
+	}
 }
 
 void InstanceManager::RenderProcessControl() {
@@ -214,7 +184,7 @@ void InstanceManager::RenderAutoLogin(int n) {
 			ImGui::BeginDisabled();
 
 		if (ImGui::Button("Login", ImVec2(320.0f, 0.0f))) {
-			std::thread([this, n]() {
+			std::thread([n]() {
 				CoreLogger::Log(LogLevel::INFO, "Beginning auto login for {}", g_InstanceNames[n]);
 
 				auto start = std::chrono::high_resolution_clock::now();
@@ -266,8 +236,7 @@ void InstanceManager::RenderAutoLogin(int n) {
 	}
 }
 
-void InstanceManager::RenderLaunch()
-{
+void InstanceManager::RenderLaunch() {
 	static auto& config = Config::getInstance().Get();
 	if (ImGui::TreeNode("Launch control")) {
 		static std::string placeID = config["lastPlaceID"];
@@ -380,22 +349,17 @@ void InstanceManager::RenderTerminate() {
 void InstanceManager::SubmitDeleteTask(int idx) {
 	const std::string instanceName = g_InstanceNames[idx];
 
-	auto callback = [instanceName, idx]()
-	{
+	auto callback = [instanceName, idx]() {
 		g_InstanceNames.erase(g_InstanceNames.begin() + idx);
 		CoreLogger::Log(LogLevel::INFO, "{} has been deleted", instanceName);
 	};
 
 	this->m_QueuedThreadPool.SubmitTask(callback, [instanceName]() {
-		try
-		{
+		try {
 			g_InstanceControl.DeleteInstance(instanceName);
-		}
-		catch (const std::exception& e)
-		{
+		} catch (const std::exception& e) {
 			CoreLogger::Log(LogLevel::WARNING, "Failed to delete {}: {}", instanceName, e.what());
 		}
-
 	});
 }
 
@@ -492,7 +456,7 @@ void InstanceManager::RenderCreateInstance() {
 		};
 
 		this->m_QueuedThreadPool.SubmitTask(completionCallback, []() {
-		       g_InstanceControl.CreateInstance(instanceNameBuf);
+			g_InstanceControl.CreateInstance(instanceNameBuf);
 		});
 	}
 }
