@@ -1,7 +1,7 @@
 #pragma once
 #include "Base.hpp"
 #include "FileManagement.h"
-#include "ui/AppLog.hpp"
+#include "ui/AppLog.h"
 #include "ui/AutoRelaunch.h"
 #include "utils/threadpool/ThreadPool.hpp"
 

@@ -241,13 +241,12 @@ void AutoRelaunch::Draw(const char* title, bool* p_open) {
 		ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(123, 33, 33, 255));
 
 		if (ImGui::Button("Terminate Group", ImVec2(ImGui::GetContentRegionAvail().x, 0))) {
-			for (int i = 0; i < m_GroupSelection.size(); ++i) {
-				if (m_GroupSelection[i]) {
-					g_InstanceControl.TerminateGroup(m_Groups[i]);
-					m_Groups.erase(m_Groups.begin() + i);
-					m_GroupSelection.erase(m_GroupSelection.begin() + i);
-					break;
-				}
+			auto it = std::ranges::find(m_GroupSelection, true);
+			if (it != m_GroupSelection.end()) {
+				std::size_t index = std::distance(m_GroupSelection.begin(), it);
+				g_InstanceControl.TerminateGroup(m_Groups[index]);
+				m_Groups.erase(m_Groups.begin() + index);
+				m_GroupSelection.erase(m_GroupSelection.begin() + index);
 			}
 		}
 

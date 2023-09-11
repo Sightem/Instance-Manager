@@ -1,4 +1,4 @@
-#include "ui/AppLog.hpp"
+#include "ui/AppLog.h"
 
 #include "imgui.h"
 #include "logging/CoreLogger.hpp"
@@ -78,25 +78,32 @@ void AppLog::Draw() {
 }
 
 void AppLog::ProcessLog(const std::string& log) {
-	// Append the log to the buffer
 	m_Buf.append(log.data(), log.data() + log.size());
-	m_Buf.append("\n");// Append newline here
+	m_Buf.append("\n");
 
-	// Update line offsets
-	size_t oldSize = m_Buf.size() - log.size();
-	for (int newSize = m_Buf.size(); oldSize < newSize; oldSize++)
-		if (m_Buf[static_cast<std::string::size_type>(oldSize)] == '\n')
-			m_LineOffsets.push_back(static_cast<int>(oldSize + 1));
+	std::size_t initialOffset = m_Buf.size() - log.size();
+
+	std::for_each(m_Buf.begin() + initialOffset, m_Buf.end(),
+	              [this, &initialOffset](char c) {
+		              if (c == '\n') {
+			              m_LineOffsets.push_back(static_cast<int>(++initialOffset));
+		              } else {
+			              ++initialOffset;
+		              }
+	              });
 }
 
 void AppLog::RenderLogLine(const char* line_start, const char* line_end) {
-	const char* timestampEnd = strstr(line_start, "]");// Find the end of the timestamp
+	const char* timestampEnd = strstr(line_start, "]");
 	if (timestampEnd) {
-		// rgb(91 190 247) normalized
-		ImGui::TextColored(ImVec4(0.3569f, 0.7451f, 0.9686f, 1.0f), "%.*s]", (int) (timestampEnd - line_start), line_start);// Render the timestamp in yellow
+		ImGui::TextColored(ImVec4(0.3569f, 0.7451f, 0.9686f, 1.0f), "%.*s]", static_cast<int>(timestampEnd - line_start), line_start);
 		ImGui::SameLine();
-		ImGui::TextUnformatted(timestampEnd + 2, line_end);// Render the message
+		ImGui::TextUnformatted(timestampEnd + 2, line_end);
 	} else {
-		ImGui::TextUnformatted(line_start, line_end);// Fallback if no timestamp is found
+		ImGui::TextUnformatted(line_start, line_end);
 	}
+}
+
+AppLog::~AppLog() {
+	Clear();
 }

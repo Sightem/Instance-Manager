@@ -223,22 +223,17 @@ namespace Roblox {
 	}
 
 	std::vector<std::string> GetNewInstances(const std::vector<std::string>& old_instances) {
-		std::vector<std::string> new_instances = g_InstanceControl.GetInstanceNames();
+		const std::vector<std::string> new_instances = g_InstanceControl.GetInstanceNames();
 		std::vector<std::string> result;
 
-		// Check if an instance in new_instances is not present in old_instances
-		for (const auto& new_instance: new_instances) {
-			bool found = false;
-			for (const auto& old_instance: old_instances) {
-				if (new_instance == old_instance) {
-					found = true;
-					break;
-				}
-			}
-			if (!found) {
-				result.push_back(new_instance);
-			}
-		}
+		std::copy_if(new_instances.begin(), new_instances.end(), std::back_inserter(result),
+		             [&old_instances](const std::string& new_instance) {
+			             return !std::any_of(old_instances.begin(), old_instances.end(),
+			                                 [&new_instance](const std::string& old_instance) {
+				                                 return new_instance == old_instance;
+			                                 });
+		             }
+		);
 
 		return result;
 	}

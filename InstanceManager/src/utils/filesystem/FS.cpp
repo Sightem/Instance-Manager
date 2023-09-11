@@ -147,17 +147,22 @@ namespace FS {
 
 	std::vector<std::string> FindFiles(const std::string& path, const std::string& substring) {
 		std::vector<std::string> result;
+
 		try {
-			for (const auto& entry: std::filesystem::directory_iterator(path)) {
-				if ((entry.is_regular_file() || entry.is_directory()) && entry.path().string().find(substring) != std::string::npos) {
-					result.push_back(entry.path().string());
-				}
-			}
+			auto dir_range = std::filesystem::directory_iterator(path) | std::views::transform([](const auto& entry) {
+				                 return entry.path().string();
+			                 });
+
+			std::ranges::copy_if(dir_range, std::back_inserter(result), [&](const std::string& entry_str) {
+				return entry_str.find(substring) != std::string::npos;
+			});
+
 		} catch (const std::filesystem::filesystem_error& e) {
 			CoreLogger::Log(LogLevel::ERR, "Error: {}", e.what());
 		}
 
 		return result;
 	}
+
 
 }// namespace FS

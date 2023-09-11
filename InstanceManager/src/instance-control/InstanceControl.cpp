@@ -69,11 +69,14 @@ void InstanceControl::TerminateGroup(const std::string& groupname) {
 	m_Groups.erase(it);
 }
 
-std::vector<std::string> InstanceControl::GetInstanceNames() {
+std::vector<std::string> InstanceControl::GetInstanceNames() const {
 	std::vector<std::string> names;
-	for (auto& instance: m_Instances) {
-		names.emplace_back(instance.first);
-	}
+	names.reserve(m_Instances.size());
+
+	std::transform(m_Instances.begin(), m_Instances.end(), std::back_inserter(names),
+	               [](const auto& instance) {
+		               return instance.first;
+	               });
 
 	return names;
 }

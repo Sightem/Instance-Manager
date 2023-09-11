@@ -10,10 +10,8 @@
 #include "roblox/Roblox.h"
 #include "utils/Utils.hpp"
 
-class InstanceControl
-{
+class InstanceControl {
 public:
-
 	InstanceControl(const InstanceControl&) = delete;
 	InstanceControl& operator=(const InstanceControl&) = delete;
 
@@ -22,36 +20,35 @@ public:
 	bool IsInstanceRunning(const std::string& username);
 	bool CreateInstance(const std::string& name);
 
-    std::vector<std::string> GetInstanceNames();
+	std::vector<std::string> GetInstanceNames() const;
 
-    Manager& GetManager(const std::string& username);
+	Manager& GetManager(const std::string& username);
 
 	const Roblox::Instance& GetInstance(const std::string& username);
 
 
 	void TerminateGroup(const std::string& groupname);
-    void DeleteInstance(const std::string& name);
+	void DeleteInstance(const std::string& name);
 
-    struct GroupCreationInfo {
-        std::string groupname;
-        std::vector<std::string> usernames;
-        std::string placeid;
-        std::string linkcode;
-        std::string dllpath;
-        std::string mode;
-        std::string method;
-        int launchdelay;
-        int relaunchinterval;
-        int injectdelay;
-        ImU32 color;
-    };
+	struct GroupCreationInfo {
+		std::string groupname;
+		std::vector<std::string> usernames;
+		std::string placeid;
+		std::string linkcode;
+		std::string dllpath;
+		std::string mode;
+		std::string method;
+		int launchdelay;
+		int relaunchinterval;
+		int injectdelay;
+		ImU32 color;
+	};
 
-    void CreateGroup(const GroupCreationInfo& info);
+	void CreateGroup(const GroupCreationInfo& info);
 
-    ImU32 GetColor(const std::string& username) { return std::get<ImU32>(this->m_Instances[username]); };
+	ImU32 GetColor(const std::string& username) { return std::get<ImU32>(this->m_Instances[username]); };
 
 private:
-
 	InstanceControl() = default;
 
 	friend InstanceControl& GetPrivateInstance();

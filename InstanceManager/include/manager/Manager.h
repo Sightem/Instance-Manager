@@ -27,8 +27,6 @@ public:
 
 	bool Inject(const std::string& path, const std::string& mode, const std::string& method) const;
 
-	int64_t GetLifeTime() const;
-
 	DWORD GetPID() const { return this->m_Pid; }
 
 	std::string GetUsername() const { return this->m_Username; }

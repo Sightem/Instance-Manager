@@ -37,7 +37,7 @@ namespace Roblox {
 	struct Setting {
 		std::string type;
 		std::string name;
-		std::variant<int, float, std::string> value; // variant can hold multiple types
+		std::variant<int, float, std::string> value;
 	};
 
 	ModifyXMLError ModifySettings(const std::string& filePath, const std::vector<Setting>& settings);

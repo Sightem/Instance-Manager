@@ -219,7 +219,6 @@ public:
 
 
 				// Dockspace
-				ImGuiIO& io = ImGui::GetIO();
 				ImGuiStyle& style = ImGui::GetStyle();
 				float minWinSizeX = style.WindowMinSize.x;
 				style.WindowMinSize.x = 370.0f;

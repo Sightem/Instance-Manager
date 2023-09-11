@@ -74,12 +74,6 @@ bool Manager::Inject(const std::string& path, const std::string& mode, const std
 	return true;
 }
 
-int64_t Manager::GetLifeTime() const {
-	auto now = std::chrono::system_clock::now();
-	auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - this->m_CreationTime);
-	return elapsed.count();
-}
-
 bool Manager::IsRunning() const {
 	return Native::IsProcessRunning(this->m_Pid, "Windows10Universal.exe");
 }

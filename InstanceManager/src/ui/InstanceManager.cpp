@@ -8,7 +8,7 @@
 #include "logging/CoreLogger.hpp"
 #include "logging/FileLogger.hpp"
 #include "roblox/Roblox.h"
-#include "ui/AppLog.hpp"
+#include "ui/AppLog.h"
 #include "ui/CustomWidgets.hpp"
 #include "ui/UI.h"
 #include "utils/Utils.hpp"
@@ -34,12 +34,15 @@ void InstanceManager::StartUp() {
 
 	if (!std::filesystem::exists("config.json")) {
 		std::ofstream ofs("config.json", std::ofstream::out | std::ofstream::trunc);
-		nlohmann::json j;
-		j["lastPlaceID"] = "";
-		j["lastVip"] = "";
-		j["lastDelay"] = "";
-		j["lastInterval"] = "";
-		j["lastInjectDelay"] = "";
+
+		const nlohmann::json j = {
+		        {"lastPlaceID", ""},
+		        {"lastVip", ""},
+		        {"lastDelay", ""},
+		        {"lastInterval", ""},
+		        {"lastInjectDelay", ""},
+		};
+
 		ofs << j.dump(4);
 
 		ofs.flush();
@@ -52,7 +55,7 @@ void InstanceManager::StartUp() {
 		std::filesystem::create_directory("logs");
 	}
 
-	std::string logPath = std::filesystem::current_path().string() + "\\logs";
+	const std::filesystem::path logPath = std::filesystem::current_path() / "logs";
 	FileLogger& fileLogger = FileLogger::GetInstance();
 	fileLogger.Initialize(logPath);
 }
@@ -312,7 +315,7 @@ void InstanceManager::RenderSettings() {
 
 		if (ImGui::Button("Apply", ImVec2(250.0f, 0.0f))) {
 			Utils::ForEachSelectedInstance(g_Selection, [](int idx) {
-				std::string path = fmt::format(R"({}\AppData\Local\Packages\{}\LocalState\GlobalBasicSettings_13.xml)", Native::GetUserProfilePath(), g_InstanceControl.GetInstance(g_InstanceNames[idx]).PackageFamilyName);
+				const std::string path = fmt::format(R"({}\AppData\Local\Packages\{}\LocalState\GlobalBasicSettings_13.xml)", Native::GetUserProfilePath(), g_InstanceControl.GetInstance(g_InstanceNames[idx]).PackageFamilyName);
 
 				if (std::filesystem::exists(path)) {
 					std::vector<Roblox::Setting> settings = {

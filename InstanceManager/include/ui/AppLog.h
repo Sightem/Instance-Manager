@@ -16,9 +16,7 @@ public:
 
 	AppLog();
 
-	~AppLog() {
-		Clear();
-	}
+	~AppLog();
 
 	void Draw();
 
@@ -30,11 +28,9 @@ private:
 	ImGuiTextBuffer m_Buf;
 	ImGuiTextFilter m_Filter;
 	ImVector<int> m_LineOffsets;
-	bool m_AutoScroll;
+	bool m_AutoScroll{true};
 
 	std::mutex mtx;
 	std::condition_variable cv;
-	std::queue<std::string> m_LogsQueue;
-	bool m_StopWorker = false;
 	std::thread m_WorkerThread;
 };

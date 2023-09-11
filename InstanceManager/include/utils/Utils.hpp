@@ -27,14 +27,16 @@ namespace Utils {
 		    { selection[std::size_t{}] } -> std::convertible_to<bool>;
 	    }
 	void ForEachSelectedInstance(const SelectionType& selection, Func func) {
-		for (std::size_t i = 0; i < selection.size(); ++i) {
-			if (selection[i]) {
-				func(i);
+		for (const auto [index, isSelected] : selection | std::views::enumerate) {
+			if (isSelected) {
+				func(index);
 			}
 		}
 	}
 
 	template<typename T>
+	concept IsDuration = std::is_convertible_v<T, std::chrono::duration<typename T::rep, typename T::period>>;
+	template<IsDuration T>
 	void SleepFor(T duration) {
 		std::this_thread::sleep_for(duration);
 	}
